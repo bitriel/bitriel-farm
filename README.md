@@ -1,2 +1,3 @@
 # bitriel-farm
-Yield Farming Smart Contracts for BitrielSwap Protocol 
+
+Yield Farming Smart Contracts for BitrielSwap Protocol

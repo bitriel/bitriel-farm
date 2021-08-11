@@ -1,0 +1,56 @@
+{
+  "name": "bitriel-farm",
+  "version": "1.0.0",
+  "description": "Yield Farming Smart Contracts for BitrielSwap Protocol",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bitriel/bitriel-farm.git"
+  },
+  "keywords": [
+    "bitrielswap",
+    "yield-farming",
+    "smart-contracts"
+  ],
+  "author": "hangleang",
+  "license": "GPL-3.0",
+  "bugs": {
+    "url": "https://github.com/bitriel/bitriel-farm/issues"
+  },
+  "homepage": "https://github.com/bitriel/bitriel-farm#readme",
+  "files": [
+    "abi",
+    "artifacts",
+    "contracts",
+    "deployments",
+    "exports",
+    "types"
+  ],
+  "scripts": {
+    "test": "npx hardhat test"
+  },
+  "devDependencies": {
+    "@nomiclabs/hardhat-ethers": "^2.0.2",
+    "@nomiclabs/hardhat-etherscan": "^2.1.4",
+    "@nomiclabs/hardhat-waffle": "^2.0.1",
+    "@types/chai": "^4.2.21",
+    "@types/mocha": "^9.0.0",
+    "@types/node": "^16.4.13",
+    "chai": "^4.3.4",
+    "ethereum-waffle": "^3.4.0",
+    "ethers": "^5.4.4",
+    "hardhat": "^2.6.0",
+    "hardhat-abi-exporter": "^2.2.1",
+    "hardhat-contract-sizer": "^2.0.3",
+    "hardhat-deploy": "^0.8.11",
+    "hardhat-deploy-ethers": "^0.3.0-beta.10",
+    "hardhat-gas-reporter": "^1.0.4",
+    "hardhat-spdx-license-identifier": "^2.0.3",
+    "hardhat-typechain": "^0.3.5",
+    "hardhat-watcher": "^2.1.1",
+    "solidity-coverage": "^0.7.16",
+    "ts-node": "^10.2.0",
+    "typescript": "^4.3.5",
+    "yarn": "^1.22.11"
+  }
+}
