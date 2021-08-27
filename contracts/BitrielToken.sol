@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 // WARNING: There is a known vuln contained within this contract related to vote delegation, 
 // it's NOT recommmended to use this in production.  
 
-// BitrielToken with Governance.
+/// @title BitrielToken with Governance.
 contract BitrielToken is ERC20("BitrielToken", "BTR"), Ownable {
     using SafeMath for uint256;
 
