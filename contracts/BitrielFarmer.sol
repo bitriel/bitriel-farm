@@ -292,7 +292,7 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
     }
 
     /// @inheritdoc IBitrielFarmer
-    function withdrawToken(uint256 tokenId, address to, bytes calldata data) external override {
+    function withdrawToken(uint256 tokenId, address to, bytes calldata data) public override {
         require(to != address(0) && to != address(this), "IRA"); // invalid recipient address or is this contract address
         
         Deposit memory deposit = deposits[tokenId];
@@ -312,7 +312,7 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
     }
 
     /// @inheritdoc IBitrielFarmer
-    function harvest(address to, uint256 yieldRequested) external override 
+    function harvest(address to, uint256 yieldRequested) public override 
     returns (uint256 yieldHarvested) {
         require(to != address(0) && to != address(this), "IRA"); // invalid recipient address
         require(yieldRequested > 0, "YLZ"); // yield requested must be greater than zero
@@ -330,6 +330,17 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
 
         // emit YieldHarvested event
         emit YieldHarvested(to, yieldHarvested);
+    }
+
+    /// @inheritdoc IBitrielFarmer
+    function withdrawAndHarvest(
+        address to, 
+        uint256 tokenId, 
+        uint256 amountRequested, 
+        bytes calldata data
+    ) external override returns (uint256 yieldHarvested) {
+        withdrawToken(tokenId, to, data);
+        yieldHarvested = harvest(to, amountRequested);
     }
 
     /// @inheritdoc IBitrielFarmer
@@ -363,12 +374,13 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
     }
 
     /// @inheritdoc IBitrielFarmer
-    function setMigrator(IMigrator _migrator) public override onlyOwner {
+    function setMigrator(IMigrator _migrator) external override onlyOwner {
+        require(address(_migrator) != address(0), "IMA"); // invalid migrator contract address
         migrator = _migrator;
     }
 
     /// @inheritdoc IBitrielFarmer
-    function migrate(IMigrator.MigrateParams calldata params) public override {
+    function migrate(IMigrator.MigrateParams calldata params) external override {
         require(address(migrator) != address(0), "NM"); // no migrator
         
         // get tokenId from Migrator.migrate() contract

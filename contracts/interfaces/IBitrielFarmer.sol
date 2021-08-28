@@ -140,7 +140,7 @@ interface IBitrielFarmer is IERC721Receiver, IMulticall {
         address to, 
         uint256 tokenId, 
         uint256 amountRequested, 
-        bytes memory data
+        bytes calldata data
     ) external returns (uint256 yieldHarvested);
 
     /// @notice Calculates the yield (reward) amount that will be received for the given stake
