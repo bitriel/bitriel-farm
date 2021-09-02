@@ -5,10 +5,10 @@ import "dotenv/config"
 // plugins
 import "solidity-coverage"
 import "@nomiclabs/hardhat-etherscan";
+import "@nomiclabs/hardhat-ethers"
 import "hardhat-contract-sizer";
 import "hardhat-abi-exporter"
 import "hardhat-deploy"
-import "hardhat-deploy-ethers"
 import "hardhat-gas-reporter"
 import "hardhat-spdx-license-identifier"
 import "hardhat-typechain"
@@ -19,32 +19,12 @@ const accounts = {
 }
 
 const config: HardhatUserConfig = {
-  abiExporter: {
-    path: "./abi",
-    clear: false,
-    flat: true,
-    // only: [],
-    // except: []
-  },
-  defaultNetwork: "localhost",
-  etherscan: {
-    apiKey: process.env.ETHERSCAN_API_KEY || process.env.BSCSCAN_API_KEY,
-  },
-  gasReporter: {
-    coinmarketcap: process.env.COINMARKETCAP_API_KEY,
-    currency: "USD",
-    enabled: process.env.REPORT_GAS === "true",
-    excludeContracts: ["contracts/mocks/", "contracts/libraries/"],
-  },
-  mocha: {
-    timeout: 20000,
-  },
+  defaultNetwork: "hardhat",
   namedAccounts: {
     deployer: {
       default: 0,
     },
     dev: {
-      // Default to 1
       default: 1,
     },
   },
@@ -53,6 +33,9 @@ const config: HardhatUserConfig = {
       live: false,
       saveDeployments: true,
       tags: ["local"],
+    },
+    hardhat: {
+      allowUnlimitedContractSize: false,
     },
     mainnet: {
       url: `https://mainnet.infura.io/v3/${process.env.INFURA_API_KEY}`,
@@ -147,6 +130,25 @@ const config: HardhatUserConfig = {
         },
       },
     ],
+  },
+  etherscan: {
+    apiKey: process.env.ETHERSCAN_API_KEY || process.env.BSCSCAN_API_KEY,
+  },
+  mocha: {
+    timeout: 20000,
+  },
+  abiExporter: {
+    path: "./abi",
+    clear: true,
+    flat: true,
+    // only: [],
+    // except: []
+  },
+  gasReporter: {
+    coinmarketcap: process.env.COINMARKETCAP_API_KEY,
+    currency: "USD",
+    enabled: process.env.REPORT_GAS === "true",
+    excludeContracts: ["contracts/test/", "contracts/libraries/"],
   },
   contractSizer: {
     alphaSort: true,

@@ -4,7 +4,7 @@ pragma solidity >=0.7.0;
 import '@bitriel/bitrielswap-core/contracts/libraries/FullMath.sol';
 import '@openzeppelin/contracts/math/Math.sol';
 
-/// @title Math for computing yield (rewards)
+/// @dev Math for computing yield (rewards)
 /// @notice Allows computing yield given some parameters of stakes and incentives
 library YieldMath {
     /// @notice Compute the amount of yield owed given parameters of the incentive and stake

@@ -9,18 +9,18 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import '@bitriel/bitrielswap-core/contracts/interfaces/IBitrielFactory.sol';
 import '@bitriel/bitrielswap-core/contracts/interfaces/IBitrielPool.sol';
 import '@bitriel/bitrielswap-periphery/contracts/interfaces/INonfungiblePositionManager.sol';
+import '@bitriel/bitrielswap-periphery/contracts/interfaces/IMigrator.sol';
 import '@bitriel/bitrielswap-periphery/contracts/libraries/TransferHelper.sol';
 import '@bitriel/bitrielswap-periphery/contracts/base/Multicall.sol';
 
 import "./interfaces/IBitrielFarmer.sol";
-import "./interfaces/IMigrator.sol";
 import "./libraries/NFTPositionInfo.sol";
 import "./libraries/YieldMath.sol";
 import "./libraries/FarmId.sol";
 import "./BitrielToken.sol";
 
 /// @title BitrielFarmer is the master of Bitriel. He can make BTR and he is a fair guy.
-/// @dev that it's ownable and the owner wields tremendous power. The ownership
+/// @notice that it's ownable and the owner wields tremendous power. The ownership
 /// will be transferred to a governance smart contract once BTR is sufficiently
 /// distributed and the community can show to govern itself.
 contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
@@ -63,35 +63,30 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
     BitrielToken public immutable bitriel;
     /// @notice Dev address.
     address public dev;
-    // /// @notice BTR tokens created per block.
-    // uint256 public immutable BTRPerBlock;
-    // /// @notice The block number when BTR mining starts.
-    // uint256 public immutable startBlock;
-    // /// @notice Block number when bonus BTR period ends.
-    // uint256 public immutable bonusEndBlock;
-    // /// @dev Bonus muliplier for early bitriel makers.
-    // uint256 private constant BONUS_MULTIPLIER = 1;
-    // uint256 private constant ACC_BTR_PRECISION = 1e12;
 
     /// @dev bytes32 refers to the return value of FarmId.compute
-    /// @inheritdoc IBitrielFarmer
     mapping(bytes32 => Farm) public override farms;
     /// @dev deposits[tokenId] => Deposit
-    /// @inheritdoc IBitrielFarmer
     mapping(uint256 => Deposit) public override deposits;
     /// @dev stakes[farmId][tokenId] => Stake
     mapping(bytes32 => mapping(uint256 => Stake)) private _stakes;
-    /// @dev yield[user] => yieldOwed
+    /// @dev yield[owner] => uint256
     /// @inheritdoc IBitrielFarmer
     mapping(address => uint256) public override yield;
     /// @inheritdoc IBitrielFarmer
     IMigrator public override migrator;
 
+    /// @param _factory the Uniswap V3 factory
+    /// @param _nonfungiblePositionManager the NFT position manager contract address
+    /// @param _bitriel the Bitriel token address
+    /// @param _dev the developer address
+    /// @param _maxFarmingStartLeadTime the max duration of an yield farming in seconds
+    /// @param _maxFarmingDuration the max amount of seconds into the future the yield farming startTime can be set
     constructor(
         IBitrielFactory _factory,
         INonfungiblePositionManager _nonfungiblePositionManager,
         BitrielToken _bitriel,
-        address _devaddr,
+        address _dev,
         // uint256 _BTRPerBlock,
         uint256 _maxFarmingStartLeadTime,
         uint256 _maxFarmingDuration
@@ -101,7 +96,7 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
         factory = _factory;
         nonfungiblePositionManager = _nonfungiblePositionManager;
         bitriel = _bitriel;
-        dev = _devaddr;
+        dev = _dev;
         // BTRPerBlock = _BTRPerBlock;
         maxFarmingStartLeadTime = _maxFarmingStartLeadTime;
         maxFarmingDuration = _maxFarmingDuration;

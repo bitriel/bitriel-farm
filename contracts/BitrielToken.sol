@@ -9,7 +9,7 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 // it's NOT recommmended to use this in production.  
 
 /// @title BitrielToken with Governance.
-contract BitrielToken is ERC20("BitrielToken", "BTR"), Ownable {
+contract BitrielToken is ERC20("Bitriel", "BTR"), Ownable {
     using SafeMath for uint256;
 
     /// @notice Creates `_amount` token to `_to`. Must only be called by the owner (MasterChef).

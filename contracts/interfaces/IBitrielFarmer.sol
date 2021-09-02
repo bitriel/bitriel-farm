@@ -9,8 +9,8 @@ import "@bitriel/bitrielswap-core/contracts/interfaces/IBitrielFactory.sol";
 import "@bitriel/bitrielswap-core/contracts/interfaces/IBitrielPool.sol";
 import '@bitriel/bitrielswap-periphery/contracts/interfaces/IMulticall.sol';
 import "@bitriel/bitrielswap-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
+import "@bitriel/bitrielswap-periphery/contracts/interfaces/IMigrator.sol";
 
-import "./IMigrator.sol";
 
 /// @title Bitriel Farmer Interface
 /// @notice Allows staking nonfungible liquidity tokens in exchange for BTRs as reward tokens

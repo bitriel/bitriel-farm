@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity >=0.7.0;
 
-import '@bitriel/bitrielswap-periphery/contracts/interfaces/INonfungiblePositionManager.sol';
 import '@bitriel/bitrielswap-core/contracts/interfaces/IBitrielFactory.sol';
 import '@bitriel/bitrielswap-core/contracts/interfaces/IBitrielPool.sol';
-
+import '@bitriel/bitrielswap-periphery/contracts/interfaces/INonfungiblePositionManager.sol';
 import '@bitriel/bitrielswap-periphery/contracts/libraries/PoolAddress.sol';
 
 /// @notice Encapsulates the logic for getting info about a NFT token ID
