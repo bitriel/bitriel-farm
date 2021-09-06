@@ -6,13 +6,12 @@ import "dotenv/config"
 import "solidity-coverage"
 import "@nomiclabs/hardhat-etherscan";
 import "@nomiclabs/hardhat-ethers"
+import '@typechain/hardhat'
 import "hardhat-contract-sizer";
 import "hardhat-abi-exporter"
 import "hardhat-deploy"
 import "hardhat-gas-reporter"
 import "hardhat-spdx-license-identifier"
-import "hardhat-typechain"
-import "hardhat-watcher"
 
 const accounts = {
   mnemonic: process.env.MNEMONIC,
@@ -161,14 +160,6 @@ const config: HardhatUserConfig = {
   },
   typechain: {
     outDir: "types",
-    target: "ethers-v5",
-  },
-  watcher: {
-    compile: {
-      tasks: ["compile"],
-      files: ["./contracts"],
-      verbose: true,
-    },
   },
 }
 

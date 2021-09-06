@@ -5,8 +5,12 @@
       "strict": true,
       "esModuleInterop": true,
       "outDir": "dist",
-      "resolveJsonModule": true
+      "resolveJsonModule": true,
+      "preserveSymlinks": true,
+      "typeRoots": ["./types", "./node_modules/@types", "./test/shared/external/types"],
+      "types": ["@nomiclabs/hardhat-ethers", "@nomiclabs/hardhat-waffle"],
+      "noImplicitAny": false
     },
-    "include": ["./hardhat.config.ts", "./deploy", "./test"],
+    "include": ["./deploy", "./test"],
     "files": ["./hardhat.config.ts"]
   }
