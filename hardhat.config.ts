@@ -8,10 +8,8 @@ import "@nomiclabs/hardhat-etherscan";
 import "@nomiclabs/hardhat-ethers"
 import '@typechain/hardhat'
 import "hardhat-contract-sizer";
-import "hardhat-abi-exporter"
 import "hardhat-deploy"
 import "hardhat-gas-reporter"
-import "hardhat-spdx-license-identifier"
 
 const accounts = {
   mnemonic: process.env.MNEMONIC,
@@ -130,18 +128,8 @@ const config: HardhatUserConfig = {
       },
     ],
   },
-  etherscan: {
-    apiKey: process.env.ETHERSCAN_API_KEY || process.env.BSCSCAN_API_KEY,
-  },
   mocha: {
     timeout: 20000,
-  },
-  abiExporter: {
-    path: "./abi",
-    clear: true,
-    flat: true,
-    // only: [],
-    // except: []
   },
   gasReporter: {
     coinmarketcap: process.env.COINMARKETCAP_API_KEY,
@@ -150,17 +138,19 @@ const config: HardhatUserConfig = {
     excludeContracts: ["contracts/test/", "contracts/libraries/"],
   },
   contractSizer: {
-    alphaSort: true,
-    runOnCompile: true,
-    disambiguatePaths: false,
-  },
-  spdxLicenseIdentifier: {
-    overwrite: false,
-    runOnCompile: true,
+    alphaSort: false,
+    runOnCompile: false,
+    disambiguatePaths: true,
   },
   typechain: {
     outDir: "types",
   },
+}
+
+if (process.env.ETHERSCAN_API_KEY) {
+  config.etherscan = {
+    apiKey: process.env.BSCSCAN_API_KEY,
+  }
 }
 
 export default config;

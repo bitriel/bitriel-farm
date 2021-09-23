@@ -45,14 +45,14 @@ interface IBitrielFarmer is IERC721Receiver, IMulticall {
     /// @return totalYieldUnclaimed The amount of yield (reward token) not yet claimed by users
     /// @return totalSecondsClaimedX128 Total liquidity-seconds claimed, represented as a UQ32.128
     /// @return numberOfStakes The count of deposits that are currently staked for the yield farming incentive
-    /// @return lastYieldBlock Last block number that BTRs distribution occurs
+    // /// @return lastYieldBlock Last block number that BTRs distribution occurs
     // /// @return accBTRPerShare Accumulated BTRs per share, times 1e12
     function farms(bytes32 farmId) external view 
     returns (
         uint256 totalYieldUnclaimed,
         uint160 totalSecondsClaimedX128,
-        uint96 numberOfStakes,
-        uint256 lastYieldBlock
+        uint96 numberOfStakes
+        // uint256 lastYieldBlock
         // uint256 accBTRPerShare
     );
 
@@ -74,7 +74,7 @@ interface IBitrielFarmer is IERC721Receiver, IMulticall {
     /// @param farmId The ID of the yield farming incentive for which the token is staked
     /// @return secondsPerLiquidityInsideInitialX128 secondsPerLiquidity represented as a UQ32.128
     /// @return liquidity The amount of liquidity in the NFT as of the last time the rewards were computed
-    function stakes(bytes32 farmId, uint256 tokenId) external view 
+    function stakes(uint256 tokenId, bytes32 farmId) external view 
     returns (
         uint160 secondsPerLiquidityInsideInitialX128, 
         uint128 liquidity
@@ -130,19 +130,6 @@ interface IBitrielFarmer is IERC721Receiver, IMulticall {
     /// @return yieldHarvested The amount of yield harvested
     function harvest(address to, uint256 yieldRequested) external returns (uint256 yieldHarvested);
 
-    /// @notice Withdraw a BitrielSwap LP token `tokenId` and Transfers `amountRequested` of accrued BTRs yield (reward tokens) from the contract to the recipient `to`
-    /// @param to The address where harvest yield will be sent to
-    /// @param tokenId The unique identifier of an BitrielSwap liquidity NFT token
-    /// @param amountRequested The amount of yield to harvest. Claims entire yield amount if set to 0.
-    /// @param data An optional data array that will be passed along to the `to` address via the NFT safeTransferFrom
-    /// @return yieldHarvested The amount of yield harvested
-    function withdrawAndHarvest(
-        address to, 
-        uint256 tokenId, 
-        uint256 amountRequested, 
-        bytes calldata data
-    ) external returns (uint256 yieldHarvested);
-
     /// @notice Calculates the yield (reward) amount that will be received for the given stake
     /// @param key The key of the yield farming incentive
     /// @param tokenId The ID of the token
@@ -158,7 +145,8 @@ interface IBitrielFarmer is IERC721Receiver, IMulticall {
 
     /// @notice Migrate lp token to another lp contract. Can be called by anyone. We trust that migrator contract is good.
     /// @param params The params necessary to migrate v2 liquidity, encoded as `MigrateParams` in calldata
-    function migrate(IMigrator.MigrateParams calldata params) external;
+    /// @param data An optional data array that will be passed along to the `to` address via the NFT safeTransferFrom
+    function migrate(IMigrator.MigrateParams calldata params, bytes calldata data) external;
 
     /// @notice Event emitted when a yield farming incentive has been created
     /// @param pool The BitrielSwap pool

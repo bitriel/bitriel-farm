@@ -3,7 +3,7 @@ import { waffle } from 'hardhat'
 import { FeeAmount, TICK_SPACINGS } from "./shared/constants"
 import { TestContext, LoadFixtureFunction } from './shared/types'
 import { duration as Duration } from './shared/block'
-import { Erc20Mock } from '../types'
+import { ERC20Mock } from '../types'
 import {
   BigNumber,
   blockTimestamp,
@@ -65,7 +65,7 @@ describe("BitrielFarmer", () => {
       } = context
       const helpers = HelperCommands.fromTestContext(context, actors, provider)
 
-      const tokensToStake: [Erc20Mock, Erc20Mock] = [token0, token1]
+      const tokensToStake: [ERC20Mock, ERC20Mock] = [token0, token1]
 
       const startTime = epoch + 1_000
       const endTime = startTime + duration
@@ -137,7 +137,7 @@ describe("BitrielFarmer", () => {
         expect(rewardsEarned.add(amountReturnedToCreator)).to.eq(totalReward)
       })
 
-      describe('time goes past the incentive end time', () => {
+      describe('time goes past the farm was end', () => {
         it('still allows an LP to unstake if they have not already', async () => {
           const {
             createFarmResult,
@@ -155,7 +155,7 @@ describe("BitrielFarmer", () => {
             doWithdraw: (params: HelperTypes.MintDepositStake.Result) =>
               farmer.connect(params.lp).withdrawToken(params.tokenId, params.lp.address, '0x'),
 
-            doClaimRewards: (params: HelperTypes.MintDepositStake.Result) =>
+            doHarvest: (params: HelperTypes.MintDepositStake.Result) =>
               farmer
                 .connect(params.lp)
                 .harvest(params.lp.address, BN('0')),
@@ -166,16 +166,16 @@ describe("BitrielFarmer", () => {
           // First make sure it is still owned by the farmer
           expect(await nft.ownerOf(stakes[0].tokenId)).to.eq(farmer.address)
 
-          // The incentive has not yet been ended by the creator
-          const incentiveId = await subject.helpers.getIncentiveId(createFarmResult)
+          // The farm has not yet been ended by the creator
+          const farmId = await subject.helpers.getFarmId(createFarmResult)
 
           // It allows the token to be unstaked the first time
           await expect(actions.doUnstake(stakes[0]))
             .to.emit(farmer, 'TokenUnstaked')
-            .withArgs(stakes[0].tokenId, incentiveId)
+            .withArgs(stakes[0].tokenId, farmId)
 
-          // It does not allow them to claim rewards (since we're past end time)
-          await actions.doClaimRewards(stakes[0])
+          // It does not allow them to harvest yield (since we're past end time)
+          await actions.doHarvest(stakes[0])
 
           // Owner is still the farmer
           expect(await nft.ownerOf(stakes[0].tokenId)).to.eq(farmer.address)
@@ -189,7 +189,7 @@ describe("BitrielFarmer", () => {
           expect(await nft.ownerOf(stakes[0].tokenId)).to.eq(stakes[0].lp.address)
         })
 
-        it('does not allow the LP to claim rewards', async () => {})
+        it('does not allow the LP to harvest yield', async () => {})
       })
     })
 
@@ -218,7 +218,7 @@ describe("BitrielFarmer", () => {
          * This user contributed 1/3 of the total liquidity (amountsToStake = 1000e18)
          * for the first half of the duration, then unstaked.
          *
-         * So that's (1/3)*(1/2)*3000e18 = ~50e18
+         * So that's (1/3)*(1/2)*3000e18 = ~500e18
          */
         expect(unstakes[0].balance).to.beWithin(BNe(1, 15), BN('499989197530864021534'))
 
@@ -278,7 +278,7 @@ describe("BitrielFarmer", () => {
 
           // lpUser0 then restakes at the 3/4 mark
           await Time.set(startTime + (3 / 4) * duration)
-          const tokensToStake: [Erc20Mock, Erc20Mock] = [token0, token1]
+          const tokensToStake: [ERC20Mock, ERC20Mock] = [token0, token1]
 
           await e20h.ensureBalancesAndApprovals(
             lpUser0,
@@ -318,7 +318,7 @@ describe("BitrielFarmer", () => {
           await Time.set(startTime + duration / 2)
 
           const lpUser3 = actors.traderUser2()
-          const tokensToStake: [Erc20Mock, Erc20Mock] = [context.tokens[0], context.tokens[1]]
+          const tokensToStake: [ERC20Mock, ERC20Mock] = [context.tokens[0], context.tokens[1]]
 
           const extraStake = await helpers.mintDepositStakeFlow({
             tokensToStake,
@@ -403,13 +403,13 @@ describe("BitrielFarmer", () => {
          *
          * totalReward: is 3_000e18
          *
-         * Incentive Start -> Halfway Through:
+         * Farm Start -> Halfway Through:
          * 3 LPs, all staking the same amount. Each LP gets roughly (totalReward/2) * (1/3)
          */
         const firstHalfRewards = totalReward.div(BN('2'))
 
         /**
-         * Halfway Through -> Incentive End:
+         * Halfway Through -> Farm End:
          * 4 LPs, all providing the same liquidity. Only 3 LPs are staking, so they should
          * each get 1/4 the liquidity for that time. So That's 1/4 * 1/2 * 3_000e18 per staked LP.
          * */
@@ -501,7 +501,7 @@ describe("BitrielFarmer", () => {
         },
       ]
 
-      const tokensToStake: [Erc20Mock, Erc20Mock] = [context.tokens[0], context.tokens[1]]
+      const tokensToStake: [ERC20Mock, ERC20Mock] = [context.tokens[0], context.tokens[1]]
 
       Time.set(createFarmResult.startTime + 1)
       const stakes = await Promise.all(

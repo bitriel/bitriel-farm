@@ -11,7 +11,7 @@ import bn from 'bignumber.js'
 import { expect, use } from 'chai'
 import { solidity } from 'ethereum-waffle'
 import { jestSnapshotPlugin } from 'mocha-chai-jest-snapshot'
-import { IBitrielPool, Erc20Mock } from '../../types'
+import { IBitrielPool, ERC20Mock } from '../../types'
 import { isArray, isString } from 'lodash'
 import { ethers, waffle } from 'hardhat'
 
@@ -131,12 +131,12 @@ export const arrayWrap = (x: any) => {
   return x
 }
 
-export const erc20Wrap = async (x: string | Erc20Mock): Promise<Erc20Mock> => {
+export const erc20Wrap = async (x: string | ERC20Mock): Promise<ERC20Mock> => {
   if (isString(x)) {
     const factory = await ethers.getContractFactory('ERC20Mock')
-    return factory.attach(x.toString()) as Erc20Mock
+    return factory.attach(x.toString()) as ERC20Mock
   }
-  return x as Erc20Mock
+  return x as ERC20Mock
 }
 
 export const makeTimestamps = (n: number, duration: number = 1_000) => ({

@@ -1,5 +1,5 @@
 import { BigNumber, Wallet } from 'ethers'
-import { Erc20Mock } from '../../types'
+import { ERC20Mock } from '../../types'
 import { FeeAmount } from '../shared/constants'
 
 export module HelperTypes {
@@ -25,7 +25,7 @@ export module HelperTypes {
   export module MintDepositStake {
     export type Args = {
       lp: Wallet
-      tokensToStake: [Erc20Mock, Erc20Mock]
+      tokensToStake: [ERC20Mock, ERC20Mock]
       amountsToStake: [BigNumber, BigNumber]
       ticks: [number, number]
       createFarmResult: CreateFarm.Result
@@ -43,7 +43,7 @@ export module HelperTypes {
   export module Mint {
     type Args = {
       lp: Wallet
-      tokens: [Erc20Mock, Erc20Mock]
+      tokens: [ERC20Mock, ERC20Mock]
       amounts?: [BigNumber, BigNumber]
       fee?: FeeAmount
       tickLower?: number

@@ -1,4 +1,4 @@
-import { FACTORY_ADDRESS, NONFUNGIBLE_POSITION_MANAGER_ADDRESSES } from "@bitriel/bitrielswap-sdk"
+import { FACTORY_ADDRESS, NONFUNGIBLE_POSITION_MANAGER_ADDRESSES, MIGRATOR_ADDRESS } from "@bitriel/bitrielswap-sdk"
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { DeployFunction } from 'hardhat-deploy/types'
 
@@ -7,6 +7,7 @@ const deploy: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   const { deploy } = deployments
   const { deployer, dev } = await getNamedAccounts()
   const chainId = ethers.BigNumber.from(await getChainId()).toNumber()
+  
   if(chainId in FACTORY_ADDRESS && chainId in NONFUNGIBLE_POSITION_MANAGER_ADDRESSES) {
     const bitriel = await ethers.getContract("BitrielToken")
     const dayInSeconds = 60 * 60 * 24 // 86400
@@ -28,11 +29,9 @@ const deploy: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
     })
 
     const bitrielFarmer = await ethers.getContract("BitrielFarmer")
-    const migrator = await deployments.get("Migrator")
-
-    if(migrator.address != "0") {
+    if(chainId in MIGRATOR_ADDRESS) {
       console.log("Set migrator address on BitrielFarmer contract")
-      await (await bitrielFarmer.setMigrator(migrator.address)).wait()
+      await (await bitrielFarmer.setMigrator(MIGRATOR_ADDRESS[chainId])).wait()
     }
 
     if (await bitriel.owner() !== bitrielFarmer.address) {
@@ -48,5 +47,5 @@ const deploy: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
 }
 
 deploy.tags = ['BitrielFarmer']
-deploy.dependencies = ['BitrielToken', 'Migrator']
+deploy.dependencies = ['BitrielToken']
 export default deploy

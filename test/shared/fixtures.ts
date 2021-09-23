@@ -15,12 +15,12 @@ import { BigNumber, encodePriceSqrt, MAX_GAS_LIMIT } from '../shared'
 import { FeeAmount } from './constants'
 import { ActorFixture } from './actors'
 
-import { IBitrielSwapRouter } from './external/types/IBitrielSwapRouter'
-import { Iwnative as IWNATIVE } from './external/types/Iwnative'
-import { NftDescriptor as NFTDescriptor } from './external/types/NftDescriptor'
+import { IBitrielSwapRouter } from '../../external_types/IBitrielSwapRouter'
+import { Iwnative as IWNATIVE } from '../../external_types/Iwnative'
+import { NftDescriptor as NFTDescriptor } from '../../external_types/NftDescriptor'
 import {
   BitrielFarmer,
-  Erc20Mock,
+  ERC20Mock,
   INonfungiblePositionManager,
   IBitrielFactory,
   IBitrielPool,
@@ -78,16 +78,16 @@ type BitrielFactoryFixture = {
   factory: IBitrielFactory
   router: IBitrielSwapRouter
   nft: INonfungiblePositionManager
-  tokens: [Erc20Mock, Erc20Mock, Erc20Mock]
+  tokens: [ERC20Mock, ERC20Mock, ERC20Mock]
 }
 
 export const bitrielFactoryFixture: Fixture<BitrielFactoryFixture> = async (wallets, provider) => {
   const { factory, wnative, router } = await swapRouterFixture(wallets, provider)
   const tokenFactory = await ethers.getContractFactory('ERC20Mock')
-  const tokens: [Erc20Mock, Erc20Mock, Erc20Mock] = [
-    (await tokenFactory.deploy("Token1", "TK1", constants.MaxUint256.div(2))) as Erc20Mock,
-    (await tokenFactory.deploy("Token2", "TK2", constants.MaxUint256.div(2))) as Erc20Mock,
-    (await tokenFactory.deploy("Token3", "TK3", constants.MaxUint256.div(2))) as Erc20Mock,
+  const tokens: [ERC20Mock, ERC20Mock, ERC20Mock] = [
+    (await tokenFactory.deploy("Token1", "TK1", constants.MaxUint256.div(2))) as ERC20Mock,
+    (await tokenFactory.deploy("Token2", "TK2", constants.MaxUint256.div(2))) as ERC20Mock,
+    (await tokenFactory.deploy("Token3", "TK3", constants.MaxUint256.div(2))) as ERC20Mock,
   ]
 
   const nftDescriptorLibrary = await nftDescriptorLibraryFixture(wallets, provider)
@@ -212,9 +212,9 @@ export type BitrielFixtureType = {
   farmer: BitrielFarmer
   yieldToken: BitrielToken
   farmIdMock: FarmIdMock
-  tokens: [Erc20Mock, Erc20Mock, Erc20Mock]
-  token0: Erc20Mock
-  token1: Erc20Mock
+  tokens: [ERC20Mock, ERC20Mock, ERC20Mock]
+  token0: ERC20Mock
+  token1: ERC20Mock
 }
 export const bitrielFixture: Fixture<BitrielFixtureType> = async (wallets, provider) => {
   const { tokens, nft, factory, router } = await bitrielFactoryFixture(wallets, provider)

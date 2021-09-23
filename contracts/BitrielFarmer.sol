@@ -31,7 +31,7 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
         uint256 totalYieldUnclaimed;
         uint160 totalSecondsClaimedX128;
         uint96 numberOfStakes;
-        uint256 lastYieldBlock;
+        // uint256 lastYieldBlock;
     }
 
     /// @notice Represents the deposit of a liquidity NFT
@@ -68,8 +68,8 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
     mapping(bytes32 => Farm) public override farms;
     /// @dev deposits[tokenId] => Deposit
     mapping(uint256 => Deposit) public override deposits;
-    /// @dev stakes[farmId][tokenId] => Stake
-    mapping(bytes32 => mapping(uint256 => Stake)) private _stakes;
+    /// @dev stakes[tokenId][farmId] => Stake
+    mapping(uint256 => mapping(bytes32 => Stake)) private _stakes;
     /// @dev yield[owner] => uint256
     /// @inheritdoc IBitrielFarmer
     mapping(address => uint256) public override yield;
@@ -105,21 +105,6 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
     }
 
     /// @inheritdoc IBitrielFarmer
-    function stakes(bytes32 farmId, uint256 tokenId) public view override returns (
-        uint160 secondsPerLiquidityInsideInitialX128, 
-        uint128 liquidity
-    ) {
-        Stake memory stake = _stakes[farmId][tokenId];
-        secondsPerLiquidityInsideInitialX128 = stake.secondsPerLiquidityInsideInitialX128;
-        liquidity = stake.liquidityNoOverflow;
-
-        // check if liquidity is over the maximum which uint96 can handle (2^96)
-        if (liquidity == type(uint96).max) {
-            liquidity = stake.liquidityIfOverflow;
-        }
-    }
-
-    /// @inheritdoc IBitrielFarmer
     function createFarm(FarmKey memory key, uint256 allocYield) external override onlyOwner {
         require(allocYield > 0, 'MBP'); // allocation yield must be positive
         require(block.timestamp <= key.startTime, 'STNoF'); // start time must be now or in the future
@@ -130,9 +115,8 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
         // get last yield distributed block and generate a unique id for farm from `FarmKey` key
         // uint256 lastYieldBlock = Math.max(block.number, startBlock);
         bytes32 farmId = FarmId.compute(key);
-        require(farms[farmId].totalYieldUnclaimed == 0, "FAE"); // farm is already exist
         // update allocation yield for the new farm
-        farms[farmId].totalYieldUnclaimed = allocYield;
+        farms[farmId].totalYieldUnclaimed = farms[farmId].totalYieldUnclaimed.add(allocYield);
         // farms[farmId].lastYieldBlock = lastYieldBlock;
 
         // issue/locked BTRs in this contract 
@@ -148,7 +132,7 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
     /// @inheritdoc IBitrielFarmer
     function updateFarm(FarmKey memory key, uint256 allocYield) external override onlyOwner {
         require(allocYield > 0, 'MBP'); // allocation yield must be positive
-        require(block.timestamp <= key.startTime, 'FAS'); // farm has been started, can not update
+        require(block.timestamp < key.startTime, 'FAS'); // farm has been started, can not update
 
         // check if farm already exist
         bytes32 farmId = FarmId.compute(key);
@@ -163,7 +147,7 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
         //     modifyFarm(farmId);
         // }
         // issue/locked new allocation BTRs in this contract and burn old allocation BTRs
-        safeBTRTransfer(address(this), oldYield);
+        safeBTRTransfer(address(bitriel), oldYield);
         bitriel.mint(address(this), allocYield);
         // incentivise 10% of total allocation yield to dev address and burn old allocation BTRs
         bitriel.transferFrom(dev, address(bitriel), oldYield.div(10));
@@ -171,71 +155,6 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
 
         // emit YieldFarmingUpdated event
         emit YieldFarmingUpdated(farmId, oldYield, allocYield);
-    }
-
-    /// @inheritdoc IBitrielFarmer
-    function endFarm(FarmKey memory key) external override onlyOwner returns(uint256 remainingYield) {
-        require(block.timestamp >= key.endTime, 'EBET'); // cannot end farm before end time
-
-        // get remaining allocation yield
-        bytes32 farmId = FarmId.compute(key);
-        Farm storage farm = farms[farmId];
-        remainingYield = farm.totalYieldUnclaimed;
-
-        require(remainingYield > 0, 'NRY'); // no remaining yield
-        require(farm.numberOfStakes == 0, 'DS'); // cannot end farm while deposits are staked
-
-        // reset total allocation yield and transfer to dev address
-        farm.totalYieldUnclaimed = 0;
-        safeBTRTransfer(dev, remainingYield);
-
-        // note we never clear totalSecondsClaimedX128
-        // emit YieldFarmingEnded event
-        emit YieldFarmingEnded(farmId, remainingYield);
-    }
-
-    /// @inheritdoc IBitrielFarmer
-    function stakeToken(FarmKey memory key, uint256 tokenId) external override {
-        require(msg.sender == deposits[tokenId].owner, "OO"); // only owner can stake their token
-
-        _stakeToken(key, tokenId);
-    }
-
-    /// @inheritdoc IBitrielFarmer
-    function unstakeToken(FarmKey memory key, uint256 tokenId) external override {
-        Deposit memory deposit = deposits[tokenId];
-        require(msg.sender == deposit.owner, "OO"); // only owner can stake their token
-        bytes32 farmId = FarmId.compute(key);
-        // get staked liquidity for computing yield amount
-        (uint160 secondsPerLiquidityInsideInitialX128, uint128 liquidity) = stakes(farmId, tokenId);
-        require(liquidity > 0, "TNS"); // token is not yet stakes
-
-        // compute yield (BTRs) amount for distributing to the staker
-        Farm storage farm = farms[farmId];
-        (, uint160 secondsPerLiquidityInsideX128, ) = key.pool.snapshotCumulativesInside(deposit.tickLower, deposit.tickUpper);
-        (uint256 yieldAmount, uint160 secondsInsideX128) = YieldMath.computeYieldAmount(
-            farm.totalYieldUnclaimed,
-            farm.totalSecondsClaimedX128,
-            key.startTime,
-            key.endTime,
-            liquidity,
-            secondsPerLiquidityInsideInitialX128,
-            secondsPerLiquidityInsideX128,
-            block.timestamp
-        );
-
-        // update states of deposits, farms and yield based computed yield amount
-        deposits[tokenId].numberOfStakes--;
-        farm.numberOfStakes--;
-        farm.totalSecondsClaimedX128 += secondsInsideX128;
-        farm.totalYieldUnclaimed = farm.totalYieldUnclaimed.sub(yieldAmount);
-        yield[msg.sender] = yield[msg.sender].add(yieldAmount);
-
-        // delete stake that represent staking position in the farm
-        delete _stakes[farmId][tokenId];
-
-        // emit TokenUnstaked event
-        emit TokenUnstaked(farmId, tokenId);
     }
 
     /// @notice Upon receiving a BitrielSwap Liquidity NFT, creates the token deposit setting owner to `from`. Also stakes token
@@ -262,12 +181,12 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
                 // stake the token with given params
                 _stakeToken(abi.decode(data, (FarmKey)), tokenId);
             } 
-            // else {
-            //     FarmKey[] memory keys = abi.decode(data, (FarmKey[]));
-            //     for (uint256 i = 0; i < keys.length; i++) {
-            //         _stakeToken(keys[i], tokenId);
-            //     }
-            // }
+            else {
+                FarmKey[] memory keys = abi.decode(data, (FarmKey[]));
+                for (uint256 i = 0; i < keys.length; i++) {
+                    _stakeToken(keys[i], tokenId);
+                }
+            }
         }
         return this.onERC721Received.selector;
     }
@@ -284,6 +203,57 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
 
         // emit DepositTransferred event
         emit DepositTransferred(tokenId, currentOwner, to);
+    }
+
+    /// @inheritdoc IBitrielFarmer
+    /// @dev At any point between start/end time period of yield farming, 
+    /// users can stake their deposit position to paticipate to earn in the farming 
+    function stakeToken(FarmKey memory key, uint256 tokenId) external override {
+        require(msg.sender == deposits[tokenId].owner, "OO"); // only owner can stake their token
+
+        _stakeToken(key, tokenId);
+    }
+
+    /// @inheritdoc IBitrielFarmer
+    /// @dev At any point of yield farming duration, 
+    /// users can unstake to get yield return from farming of their position
+    function unstakeToken(FarmKey memory key, uint256 tokenId) external override {
+        Deposit memory deposit = deposits[tokenId];
+        if (block.timestamp < key.endTime) {
+            require(msg.sender == deposit.owner, "OO"); // only owner can stake their token
+        }
+
+        bytes32 farmId = FarmId.compute(key);
+        // get staked liquidity for computing yield amount
+        (uint160 secondsPerLiquidityInsideInitialX128, uint128 liquidity) = stakes(tokenId, farmId);
+        require(liquidity > 0, "TNS"); // token is not yet stakes
+
+        // compute yield (BTRs) amount for distributing to the staker
+        Farm storage farm = farms[farmId];
+        (, uint160 secondsPerLiquidityInsideX128, ) = key.pool.snapshotCumulativesInside(deposit.tickLower, deposit.tickUpper);
+        (uint256 yieldAmount, uint160 secondsInsideX128) = YieldMath.computeYieldAmount(
+            farm.totalYieldUnclaimed,
+            farm.totalSecondsClaimedX128,
+            key.startTime,
+            key.endTime,
+            liquidity,
+            secondsPerLiquidityInsideInitialX128,
+            secondsPerLiquidityInsideX128,
+            block.timestamp
+        );
+
+        // update states of deposits, farms and yield based computed yield amount
+        deposits[tokenId].numberOfStakes--;
+        farm.numberOfStakes--;
+        farm.totalSecondsClaimedX128 += secondsInsideX128;
+        farm.totalYieldUnclaimed = farm.totalYieldUnclaimed.sub(yieldAmount);
+        yield[msg.sender] = yield[msg.sender].add(yieldAmount);
+
+        // delete stake that represent staking position in the farm
+        delete _stakes[tokenId][farmId];
+
+        // emit TokenUnstaked event
+        emit TokenUnstaked(farmId, tokenId);
     }
 
     /// @inheritdoc IBitrielFarmer
@@ -310,11 +280,10 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
     function harvest(address to, uint256 yieldRequested) public override 
     returns (uint256 yieldHarvested) {
         require(to != address(0) && to != address(this), "IRA"); // invalid recipient address
-        require(yieldRequested > 0, "YLZ"); // yield requested must be greater than zero
 
         // get available yield to harvest for distributing to `msg.sender`
         yieldHarvested = yield[msg.sender];
-        if (yieldRequested != 0 && yieldRequested < yieldHarvested) {
+        if (yieldRequested < yieldHarvested) {
             yieldHarvested = yieldRequested;
         }
 
@@ -328,14 +297,39 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
     }
 
     /// @inheritdoc IBitrielFarmer
-    function withdrawAndHarvest(
-        address to, 
-        uint256 tokenId, 
-        uint256 amountRequested, 
-        bytes calldata data
-    ) external override returns (uint256 yieldHarvested) {
-        withdrawToken(tokenId, to, data);
-        yieldHarvested = harvest(to, amountRequested);
+    function endFarm(FarmKey memory key) external override onlyOwner returns(uint256 remainingYield) {
+        require(block.timestamp >= key.endTime, 'EBET'); // cannot end farm before end time
+
+        // get remaining allocation yield
+        bytes32 farmId = FarmId.compute(key);
+        Farm storage farm = farms[farmId];
+        remainingYield = farm.totalYieldUnclaimed;
+
+        require(remainingYield > 0, 'NRY'); // no remaining yield
+        require(farm.numberOfStakes == 0, 'DS'); // cannot end farm while deposits are staked
+
+        // reset total allocation yield and transfer to dev address
+        farm.totalYieldUnclaimed = 0;
+        safeBTRTransfer(dev, remainingYield);
+
+        // note we never clear totalSecondsClaimedX128
+        // emit YieldFarmingEnded event
+        emit YieldFarmingEnded(farmId, remainingYield);
+    }
+
+    /// @inheritdoc IBitrielFarmer
+    function stakes(uint256 tokenId, bytes32 farmId) public view override returns (
+        uint160 secondsPerLiquidityInsideInitialX128, 
+        uint128 liquidity
+    ) {
+        Stake memory stake = _stakes[tokenId][farmId];
+        secondsPerLiquidityInsideInitialX128 = stake.secondsPerLiquidityInsideInitialX128;
+        liquidity = stake.liquidityNoOverflow;
+
+        // check if liquidity is over the maximum which uint96 can handle (2^96)
+        if (liquidity == type(uint96).max) {
+            liquidity = stake.liquidityIfOverflow;
+        }
     }
 
     /// @inheritdoc IBitrielFarmer
@@ -346,7 +340,7 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
     ) {
         bytes32 farmId = FarmId.compute(key);
         // get and check staked liquidity of the token on the farm
-        (uint160 secondsPerLiquidityInsideInitialX128, uint128 liquidity) = stakes(farmId, tokenId);
+        (uint160 secondsPerLiquidityInsideInitialX128, uint128 liquidity) = stakes(tokenId, farmId);
         require(liquidity > 0, 'SNE'); // stake does not exist
 
         Deposit memory deposit = deposits[tokenId];
@@ -366,6 +360,8 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
             secondsPerLiquidityInsideX128,
             block.timestamp
         );
+
+        return (yieldAmount, secondsInsideX128);
     }
 
     /// @inheritdoc IBitrielFarmer
@@ -375,14 +371,14 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
     }
 
     /// @inheritdoc IBitrielFarmer
-    function migrate(IMigrator.MigrateParams calldata params) external override {
+    function migrate(IMigrator.MigrateParams calldata params, bytes calldata data) external override {
         require(address(migrator) != address(0), "NM"); // no migrator
         
         // get tokenId from Migrator.migrate() contract
         uint256 tokenId = migrator.migrate(params);
         // transfer the token from recipient to this contract 
         // for deposit and staking position on BitrielFarm
-        nonfungiblePositionManager.safeTransferFrom(params.recipient, address(this), tokenId);
+        nonfungiblePositionManager.safeTransferFrom(params.recipient, address(this), tokenId, data);
         // transfer some BTRs based on liquidity provided to the pool as reward for migration
         safeBTRTransfer(msg.sender, 1e18);
     }
@@ -437,10 +433,10 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
         require(block.timestamp >= key.startTime, 'FNS'); // farm not started
         require(block.timestamp < key.endTime, 'FEN'); // farm is end now
 
-        // check if farm is generate some incentive for staking
+        // check if farm is generate some yield for farming
         bytes32 farmId = FarmId.compute(key);
-        require(farms[farmId].totalYieldUnclaimed > 0, 'NEI'); // non-existent incentive
-        require(_stakes[farmId][tokenId].liquidityNoOverflow == 0, 'TAS'); // token is already staked
+        require(farms[farmId].totalYieldUnclaimed > 0, 'NEI'); // non-existent farm
+        require(_stakes[tokenId][farmId].liquidityNoOverflow == 0, 'TAS'); // token is already staked
         // get/check if the liquidity and the pool is valid
         (IBitrielPool pool, int24 tickLower, int24 tickUpper, uint128 liquidity) =
             NFTPositionInfo.getPositionInfo(factory, nonfungiblePositionManager, tokenId);
@@ -456,13 +452,13 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
         // check if provided liquidity pool is over the maximum (2^96) to handle
         // store new stake object with liquidity
         if (liquidity >= type(uint96).max) {
-            _stakes[farmId][tokenId] = Stake({
+            _stakes[tokenId][farmId] = Stake({
                 secondsPerLiquidityInsideInitialX128: secondsPerLiquidityInsideX128,
                 liquidityNoOverflow: type(uint96).max,
                 liquidityIfOverflow: liquidity
             });
         } else {
-            Stake storage stake = _stakes[farmId][tokenId];
+            Stake storage stake = _stakes[tokenId][farmId];
             stake.secondsPerLiquidityInsideInitialX128 = secondsPerLiquidityInsideX128;
             stake.liquidityNoOverflow = uint96(liquidity);
         }

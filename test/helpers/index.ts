@@ -15,7 +15,7 @@ import {
 } from '../shared/index'
 import _ from 'lodash'
 import {
-  Erc20Mock,
+  ERC20Mock,
   INonfungiblePositionManager,
   BitrielFarmer,
   IBitrielPool,
@@ -25,9 +25,9 @@ import {
 import { HelperTypes } from './types'
 import { ActorFixture } from '../shared/actors'
 import { mintPosition } from '../shared/fixtures'
-import { IBitrielSwapRouter } from '../shared/external/types/IBitrielSwapRouter'
+import { IBitrielSwapRouter } from '../../external_types/IBitrielSwapRouter'
 import { ethers } from 'hardhat'
-import { ContractParams } from '../shared/external/types/contractParams'
+import { ContractParams } from '../../external_types/contractParams'
 import { TestContext } from '../shared/types'
 
 /**
@@ -233,7 +233,6 @@ export class HelperCommands {
     await this.farmer.connect(params.lp).unstakeToken(
       farmResultToStakeAdapter(params.createFarmResult),
       params.tokenId,
-
       maxGas
     )
 
@@ -284,7 +283,7 @@ export class HelperCommands {
     const farmCreator = this.actors.farmCreator()
 
     const receipt = await (
-      await this.farmer.connect(farmCreator).endIncentive(
+      await this.farmer.connect(farmCreator).endFarm(
         _.assign({}, _.pick(params.createFarmResult, ['startTime', 'endTime']), {
           pool: params.createFarmResult.poolAddress,
         })
@@ -308,7 +307,7 @@ export class HelperCommands {
     }
   }
 
-  getIncentiveId: HelperTypes.GetFarmId.Command = async (params) => {
+  getFarmId: HelperTypes.GetFarmId.Command = async (params) => {
     return this.farmIdMock.compute({
       pool: params.poolAddress,
       startTime: params.startTime,
@@ -343,8 +342,8 @@ export class HelperCommands {
     ])
     const erc20 = await ethers.getContractFactory('ERC20Mock')
 
-    const tok0 = erc20.attach(tok0Address) as Erc20Mock
-    const tok1 = erc20.attach(tok1Address) as Erc20Mock
+    const tok0 = erc20.attach(tok0Address) as ERC20Mock
+    const tok1 = erc20.attach(tok1Address) as ERC20Mock
 
     const doTrade = async () => {
       /* If we want to push price down, we need to increase tok0.
@@ -386,7 +385,7 @@ export class HelperCommands {
 export class ERC20Helper {
   ensureBalancesAndApprovals = async (
     actor: Wallet,
-    tokens: Erc20Mock | Array<Erc20Mock>,
+    tokens: ERC20Mock | Array<ERC20Mock>,
     balance: BigNumber,
     spender?: string
   ) => {
@@ -398,7 +397,7 @@ export class ERC20Helper {
     }
   }
 
-  ensureBalance = async (actor: Wallet, token: Erc20Mock, balance: BigNumber) => {
+  ensureBalance = async (actor: Wallet, token: ERC20Mock, balance: BigNumber) => {
     const currentBalance = await token.balanceOf(actor.address)
     if (currentBalance.lt(balance)) {
       await token
@@ -413,7 +412,7 @@ export class ERC20Helper {
     return await token.balanceOf(actor.address)
   }
 
-  ensureApproval = async (actor: Wallet, token: Erc20Mock, balance: BigNumber, spender: string) => {
+  ensureApproval = async (actor: Wallet, token: ERC20Mock, balance: BigNumber, spender: string) => {
     const currentAllowance = await token.allowance(actor.address, actor.address)
     if (currentAllowance.lt(balance)) {
       await token.connect(actor).approve(spender, balance)
