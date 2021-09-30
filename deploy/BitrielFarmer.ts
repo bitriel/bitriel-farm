@@ -10,9 +10,6 @@ const deploy: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   
   if(chainId in FACTORY_ADDRESS && chainId in NONFUNGIBLE_POSITION_MANAGER_ADDRESSES) {
     const bitriel = await ethers.getContract("BitrielToken")
-    const dayInSeconds = 60 * 60 * 24 // 86400
-    const weekInDays = 7 
-    const twoMonthsInDays = 2 * 30 // 60
 
     await deploy("BitrielFarmer", {
       from: deployer,
@@ -20,9 +17,7 @@ const deploy: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
         FACTORY_ADDRESS[chainId],
         NONFUNGIBLE_POSITION_MANAGER_ADDRESSES[chainId],
         bitriel.address,
-        dev, 
-        weekInDays * dayInSeconds,
-        twoMonthsInDays * dayInSeconds
+        dev,
       ],
       log: true,
       deterministicDeployment: false

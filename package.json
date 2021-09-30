@@ -1,11 +1,11 @@
 {
   "name": "@bitriel/bitriel-farm",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "license": "GPL-3.0",
   "description": "Yield Farming Smart Contracts for BitrielSwap Protocol",
   "homepage": "https://dapp.bitriel.com/farm",
   "keywords": [
-    "bitrielswap",
+    "bitriel",
     "yield-farming",
     "smart-contracts"
   ],

@@ -20,7 +20,6 @@ import {
   BitrielFarmer,
   IBitrielPool,
   BitrielToken,
-  FarmIdMock,
 } from '../../types'
 import { HelperTypes } from './types'
 import { ActorFixture } from '../shared/actors'
@@ -44,7 +43,6 @@ export class HelperCommands {
   nft: INonfungiblePositionManager
   router: IBitrielSwapRouter
   pool: IBitrielPool
-  farmIdMock: FarmIdMock
 
   DEFAULT_FARMING_DURATION = 2_000
   DEFAULT_CLAIM_DURATION = 1_000
@@ -59,7 +57,6 @@ export class HelperCommands {
     router,
     pool,
     actors,
-    farmIdMock,
   }: {
     actors: ActorFixture
     provider: MockProvider
@@ -68,7 +65,6 @@ export class HelperCommands {
     nft: INonfungiblePositionManager
     router: IBitrielSwapRouter
     pool: IBitrielPool
-    farmIdMock: FarmIdMock
   }) {
     this.actors = actors
     this.provider = provider
@@ -77,7 +73,6 @@ export class HelperCommands {
     this.nft = nft
     this.router = router
     this.pool = pool
-    this.farmIdMock = farmIdMock
   }
 
   static fromTestContext = (context: TestContext, actors: ActorFixture, provider: MockProvider): HelperCommands => {
@@ -89,7 +84,6 @@ export class HelperCommands {
       farmer: context.farmer,
       bitriel: context.yieldToken,
       pool: context.poolObj,
-      farmIdMock: context.farmIdMock,
     })
   }
 
@@ -117,10 +111,7 @@ export class HelperCommands {
     await this.bitriel.connect(farmCreator).approve(this.farmer.address, params.totalReward)
 
     await this.farmer.connect(farmCreator).createFarm(
-      {
-        pool: params.poolAddress,
-        ...times,
-      },
+      params.poolAddress,
       params.totalReward
     )
 
@@ -181,7 +172,7 @@ export class HelperCommands {
       ['safeTransferFrom(address,address,uint256)'](params.lp.address, this.farmer.address, tokenId)
     await this.farmer
       .connect(params.lp)
-      .stakeToken(farmResultToStakeAdapter(params.createFarmResult), tokenId)
+      .stake(tokenId)
 
     const stakedAt = await blockTimestamp()
 
@@ -230,8 +221,7 @@ export class HelperCommands {
   }
 
   unstakeCollectBurnFlow: HelperTypes.UnstakeCollectBurn.Command = async (params) => {
-    await this.farmer.connect(params.lp).unstakeToken(
-      farmResultToStakeAdapter(params.createFarmResult),
+    await this.farmer.connect(params.lp).unstake(
       params.tokenId,
       maxGas
     )
@@ -242,7 +232,7 @@ export class HelperCommands {
       .connect(params.lp)
       .harvest(params.lp.address, BN('0'))
 
-    await this.farmer.connect(params.lp).withdrawToken(params.tokenId, params.lp.address, '0x', maxGas)
+    await this.farmer.connect(params.lp).withdraw(params.tokenId, params.lp.address, '0x', maxGas)
 
     const { liquidity } = await this.nft.connect(params.lp).positions(params.tokenId)
 
@@ -277,42 +267,6 @@ export class HelperCommands {
       balance,
       unstakedAt,
     }
-  }
-
-  endFarmFlow: HelperTypes.EndFarm.Command = async (params) => {
-    const farmCreator = this.actors.farmCreator()
-
-    const receipt = await (
-      await this.farmer.connect(farmCreator).endFarm(
-        _.assign({}, _.pick(params.createFarmResult, ['startTime', 'endTime']), {
-          pool: params.createFarmResult.poolAddress,
-        })
-      )
-    ).wait()
-
-    const transferFilter = this.bitriel.filters.Transfer(this.farmer.address, farmCreator.address, null)
-    const transferTopic = this.bitriel.interface.getEventTopic('Transfer')
-    const logItem = receipt.logs.find((log: any) => log.topics.includes(transferTopic))
-    const events = await this.bitriel.queryFilter(transferFilter, logItem?.blockHash)
-    let amountTransferred: BigNumber
-
-    if (events.length === 1) {
-      amountTransferred = events[0].args[2]
-    } else {
-      throw new Error('Could not find transfer event')
-    }
-
-    return {
-      amountReturnedToCreator: amountTransferred,
-    }
-  }
-
-  getFarmId: HelperTypes.GetFarmId.Command = async (params) => {
-    return this.farmIdMock.compute({
-      pool: params.poolAddress,
-      startTime: params.startTime,
-      endTime: params.endTime,
-    })
   }
 
   makeTickGoFlow: HelperTypes.MakeTickGo.Command = async (params) => {

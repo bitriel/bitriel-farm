@@ -9,21 +9,19 @@ contract YieldMathMock {
     function computeYieldAmount(
         uint256 totalYieldUnclaimed,
         uint160 totalSecondsClaimedX128,
-        uint256 startTime,
-        uint256 endTime,
         uint128 liquidity,
         uint160 secondsPerLiquidityInsideInitialX128,
         uint160 secondsPerLiquidityInsideX128,
+        uint256 startTime,
         uint256 currentTime
     ) public pure returns (uint256 yield, uint160 secondsInsideX128) {
         (yield, secondsInsideX128) = YieldMath.computeYieldAmount(
             totalYieldUnclaimed,
             totalSecondsClaimedX128,
-            startTime,
-            endTime,
             liquidity,
             secondsPerLiquidityInsideInitialX128,
             secondsPerLiquidityInsideX128,
+            startTime,
             currentTime
         );
     }

@@ -24,7 +24,6 @@ import {
   INonfungiblePositionManager,
   IBitrielFactory,
   IBitrielPool,
-  FarmIdMock,
   BitrielToken,
 } from '../../types'
 
@@ -211,7 +210,6 @@ export type BitrielFixtureType = {
   router: IBitrielSwapRouter
   farmer: BitrielFarmer
   yieldToken: BitrielToken
-  farmIdMock: FarmIdMock
   tokens: [ERC20Mock, ERC20Mock, ERC20Mock]
   token0: ERC20Mock
   token1: ERC20Mock
@@ -224,8 +222,6 @@ export const bitrielFixture: Fixture<BitrielFixtureType> = async (wallets, provi
   const farmer = (await farmerFactory.deploy(factory.address, nft.address, 2 ** 32, 2 ** 32)) as BitrielFarmer
   const yieldTokenFactory = await ethers.getContractFactory('BitrielToken')
   const yieldToken = (await yieldTokenFactory.deploy()) as BitrielToken
-  const farmIdMockFactory = await ethers.getContractFactory('FarmIdMock', signer)
-  const farmIdMock = (await farmIdMockFactory.deploy()) as FarmIdMock
 
   for (const token of tokens) {
     await token.approve(nft.address, constants.MaxUint256)
@@ -248,7 +244,6 @@ export const bitrielFixture: Fixture<BitrielFixtureType> = async (wallets, provi
     tokens,
     farmer,
     yieldToken,
-    farmIdMock,
     factory,
     pool01,
     pool12,
