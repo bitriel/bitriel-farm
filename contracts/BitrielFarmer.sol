@@ -41,9 +41,9 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
     /// @notice Represents a staked liquidity NFT
     struct Stake {
         uint160 secondsPerLiquidityInsideInitialX128;
+        uint256 startTime;
         uint96 liquidityNoOverflow;
         uint128 liquidityIfOverflow;
-        uint256 startTime;
     }
 
     /// @inheritdoc IBitrielFarmer
@@ -65,23 +65,18 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
     /// @dev yield[owner] => uint256
     /// @inheritdoc IBitrielFarmer
     mapping(address => uint256) public override yield;
-    /// @notice Dev address.
-    address public dev;
 
     /// @param _factory the Uniswap V3 factory
     /// @param _nonfungiblePositionManager the NFT position manager contract address
     /// @param _bitriel the Bitriel token address
-    /// @param _dev the developer address
     constructor(
         IBitrielFactory _factory,
         INonfungiblePositionManager _nonfungiblePositionManager,
-        BitrielToken _bitriel,
-        address _dev
+        BitrielToken _bitriel
     ) {
         factory = _factory;
         nonfungiblePositionManager = _nonfungiblePositionManager;
         bitriel = _bitriel;
-        dev = _dev;
     }
 
     /// @inheritdoc IBitrielFarmer
@@ -95,7 +90,7 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
         // issue/locked BTRs in this contract 
         // incentivise 10% of total allocation yield to dev address
         bitriel.mint(address(this), allocYield);
-        bitriel.mint(dev, allocYield.div(10));
+        bitriel.mint(owner(), allocYield.div(10));
 
         // emit YieldFarmingCreated event
         emit YieldFarmingCreated(pool, allocYield);
@@ -120,7 +115,7 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
         // issue/locked new allocation BTRs in this contract
         // incentivise 10% of total allocation yield to dev address
         bitriel.mint(address(this), allocYield);
-        bitriel.mint(dev, allocYield.div(10));
+        bitriel.mint(owner(), allocYield.div(10));
 
         // emit YieldFarmingUpdated event
         emit YieldFarmingUpdated(pool, oldYield, allocYield);
@@ -137,32 +132,13 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
     ) external override returns (bytes4) {
         require(msg.sender == address(nonfungiblePositionManager), 'NBNFT'); // not a Bitriel NFT address
 
-        // get tick range from NFT positions of the tokenId
         (, , , , , int24 tickLower, int24 tickUpper, , , , , ) = nonfungiblePositionManager.positions(tokenId);
-        // create a deposit object represent deposited LP-NFT token to this contract
         deposits[tokenId] = Deposit({owner: from, tickLower: tickLower, tickUpper: tickUpper});
-
-        // emit DepositTransferred event
-        emit DepositTransferred(tokenId, address(0), from);
 
         // stake the tokenId if there are available farm
         _stake(tokenId);
 
         return this.onERC721Received.selector;
-    }
-
-    /// @inheritdoc IBitrielFarmer
-    function transferDeposit(uint256 tokenId, address to) external override {
-        require(to != address(0), "IRA"); // invalid recipient address
-        address currentOwner = deposits[tokenId].owner;
-        // check if `msg.sender` is deposit position owner
-        require(msg.sender == currentOwner, "OO"); // only owner of the token can transfer ownership
-        Deposit storage deposit = deposits[tokenId];
-        // set owner to `to` address
-        deposit.owner = to;
-
-        // emit DepositTransferred event
-        emit DepositTransferred(tokenId, currentOwner, to);
     }
 
     /// @inheritdoc IBitrielFarmer
@@ -177,73 +153,49 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
     /// @inheritdoc IBitrielFarmer
     /// @dev At any point of yield farming duration, 
     /// users can unstake to get yield return from farming of their position
-    function unstake(uint256 tokenId) external override {
+    function unstake(uint256 tokenId, bytes memory data) external override {
         Deposit memory deposit = deposits[tokenId];
-        require(msg.sender == deposit.owner, "OO"); // only owner can stake their token
-
-        // get staked liquidity for computing yield amount
-        (uint160 secondsPerLiquidityInsideInitialX128, uint128 liquidity, uint256 startTime) = stakes(tokenId);
-        require(liquidity > 0, "TNS"); // token is not yet stakes
+        harvest(tokenId, deposit.owner, 0);
 
         // get NFT position info from `tokenId` and farm info from BitrielSwap pool address
         (IBitrielPool pool, , , ) =
             NFTPositionInfo.getPositionInfo(factory, nonfungiblePositionManager, tokenId);
-        Farm memory farm = farms[address(pool)];
-
-        // get `secondsPerLiquidity` from the pool tick range
-        (, uint160 secondsPerLiquidityInsideX128, ) = pool.snapshotCumulativesInside(deposit.tickLower, deposit.tickUpper);
-
-        // compute yield (BTRs) amount for distributing to the staker
-        (uint256 yieldAmount, uint160 secondsInsideX128) = YieldMath.computeYieldAmount(
-            farm.totalYieldUnclaimed,
-            farm.totalSecondsClaimedX128,
-            liquidity,
-            secondsPerLiquidityInsideInitialX128,
-            secondsPerLiquidityInsideX128,
-            startTime,
-            block.timestamp
-        );
-
-        // update states of deposits, farms and yield based computed yield amount
-        farm.numberOfStakes--;
-        farm.totalSecondsClaimedX128 += secondsInsideX128;
-        farm.totalYieldUnclaimed = farm.totalYieldUnclaimed.sub(yieldAmount);
-        yield[msg.sender] = yield[msg.sender].add(yieldAmount);
+        farms[address(pool)].numberOfStakes--;
 
         // delete stake that represent staking position in the farm
         delete _stakes[tokenId];
+
+        // transfer LP-NFT tokenId from this contract to `to` address with `data`
+        nonfungiblePositionManager.safeTransferFrom(address(this), deposit.owner, tokenId, data);
+
+        // delete deposit position after transfer liquidity NFT back to the owner
+        delete deposits[tokenId];
 
         // emit TokenUnstaked event
         emit TokenUnstaked(tokenId);
     }
 
     /// @inheritdoc IBitrielFarmer
-    function withdraw(uint256 tokenId, address to, bytes calldata data) public override {
-        require(to != address(0) && to != address(this), "IRA"); // invalid recipient address or is this contract address
-        
-        Deposit memory deposit = deposits[tokenId];
-        require(msg.sender == deposit.owner, "OO"); // only owner can withdraw their token
-
-        // delete deposit position of the tokenId
-        delete deposits[tokenId];
-        // emit DepositTransferred event
-        emit DepositTransferred(tokenId, deposit.owner, address(0));
-
-        // transfer LP-NFT tokenId from this contract to `to` address with `data`
-        nonfungiblePositionManager.safeTransferFrom(address(this), to, tokenId, data);
-
-        // emit TokenWithdrawn event
-        emit TokenWithdrawn(tokenId, to);
-    }
-
-    /// @inheritdoc IBitrielFarmer
-    function harvest(address to, uint256 yieldRequested) public override 
+    function harvest(uint256 tokenId, address to, uint256 yieldRequested) public override 
     returns (uint256 yieldHarvested) {
+        require(msg.sender == deposits[tokenId].owner, "OO"); // only owner can stake their token
         require(to != address(0) && to != address(this), "IRA"); // invalid recipient address
+
+        // get NFT position info from `tokenId` and farm info from BitrielSwap pool address
+        (IBitrielPool pool, , , ) =
+            NFTPositionInfo.getPositionInfo(factory, nonfungiblePositionManager, tokenId);
+        address poolAddress = address(pool);
+
+        (uint256 yieldAmount, uint160 secondsInsideX128) = getYieldInfo(tokenId);
+
+        // update states of deposits, farms and yield based computed yield amount
+        farms[poolAddress].totalSecondsClaimedX128 += secondsInsideX128;
+        farms[poolAddress].totalYieldUnclaimed = farms[poolAddress].totalYieldUnclaimed.sub(yieldAmount);
+        yield[msg.sender] = yield[msg.sender].add(yieldAmount);
 
         // get available yield to harvest for distributing to `msg.sender`
         yieldHarvested = yield[msg.sender];
-        if (yieldRequested < yieldHarvested) {
+        if (yieldRequested != 0 && yieldRequested < yieldHarvested) {
             yieldHarvested = yieldRequested;
         }
 
@@ -311,35 +263,30 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
     }
 
     /// @inheritdoc IBitrielFarmer
-    function migrate(IMigrator.MigrateParams calldata params, bytes calldata data) external override {
+    function migrate(IMigrator.MigrateParams calldata params, bytes memory data) external override {
         require(address(migrator) != address(0), "NM"); // no migrator
         
         // get tokenId from Migrator.migrate() contract
+        TransferHelper.safeApprove(params.pair, address(this), params.liquidityToMigrate);
         uint256 tokenId = migrator.migrate(params);
         // transfer the token from recipient to this contract 
         // for deposit and staking position on BitrielFarm
         nonfungiblePositionManager.safeTransferFrom(params.recipient, address(this), tokenId, data);
-        // transfer some BTRs based on liquidity provided to the pool as reward for migration
-        safeBTRTransfer(msg.sender, 1e18);
-    }
-
-    /// @notice Update dev address by the previous dev.
-    function setDev(address _devaddr) external {
-        require(msg.sender == dev, "ODA"); // only dev address can change
-        dev = _devaddr;
+        // mint some BTRs based on liquidity provided to the pool as reward for migration
+        bitriel.mint(msg.sender, params.liquidityToMigrate.div(10));
     }
 
     /// @dev Stakes a deposited token without doing an ownership check
     function _stake(uint256 tokenId) private {
+        require(_stakes[tokenId].liquidityNoOverflow == 0, 'TAS'); // token is already staked
+
         // get/check if the liquidity and the pool is valid
         (IBitrielPool pool, int24 tickLower, int24 tickUpper, uint128 liquidity) =
             NFTPositionInfo.getPositionInfo(factory, nonfungiblePositionManager, tokenId);
+        require(liquidity > 0, 'ZL'); // cannot stake token with 0 liquidity
 
-        // check if farm is generate some yield for farming
         address poolAddresss = address(pool);
         require(farms[poolAddresss].totalYieldUnclaimed > 0, 'NEI'); // non-existent farm
-        require(_stakes[tokenId].liquidityNoOverflow == 0, 'TAS'); // token is already staked
-        require(liquidity > 0, 'ZL'); // cannot stake token with 0 liquidity
 
         (, uint160 secondsPerLiquidityInsideX128, ) = pool.snapshotCumulativesInside(tickLower, tickUpper);
 

@@ -5,7 +5,7 @@ import { DeployFunction } from 'hardhat-deploy/types'
 const deploy: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   const { deployments, getNamedAccounts, getChainId, ethers } = hre;
   const { deploy } = deployments
-  const { deployer, dev } = await getNamedAccounts()
+  const { deployer } = await getNamedAccounts()
   const chainId = ethers.BigNumber.from(await getChainId()).toNumber()
   
   if(chainId in FACTORY_ADDRESS && chainId in NONFUNGIBLE_POSITION_MANAGER_ADDRESSES) {
@@ -17,7 +17,6 @@ const deploy: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
         FACTORY_ADDRESS[chainId],
         NONFUNGIBLE_POSITION_MANAGER_ADDRESSES[chainId],
         bitriel.address,
-        dev,
       ],
       log: true,
       deterministicDeployment: false
@@ -32,11 +31,6 @@ const deploy: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
     if (await bitriel.owner() !== bitrielFarmer.address) {
       console.log("Transfer BitrielToken Ownership to BitrielFarmer contract for distributing stakers")
       await( await bitriel.transferOwnership(bitrielFarmer.address)).wait()
-    }
-    
-    if (await bitrielFarmer.owner() !== dev) {
-      console.log("Transfer BitrielFarmer Ownership to dev address for permission-actions")
-      await( await bitrielFarmer.transferOwnership(dev)).wait()
     }
   }
 }

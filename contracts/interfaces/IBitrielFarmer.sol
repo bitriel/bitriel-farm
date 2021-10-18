@@ -82,24 +82,15 @@ interface IBitrielFarmer is IERC721Receiver, IMulticall {
 
     /// @notice Unstakes a BitrielSwap LP token
     /// @param tokenId The ID of the token to unstake
-    function unstake(uint256 tokenId) external;
-
-    /// @notice Transfers ownership of a deposit from the sender to the given recipient
-    /// @param tokenId The ID of the token (and the deposit) to transfer
-    /// @param to The new owner of the deposit
-    function transferDeposit(uint256 tokenId, address to) external;
-
-    /// @notice Withdraws a BitrielSwap LP token `tokenId` from this contract to the recipient `to`
-    /// @param tokenId The unique identifier of an BitrielSwap LP token
-    /// @param to The address where the LP token will be sent
     /// @param data An optional data array that will be passed along to the `to` address via the NFT safeTransferFrom
-    function withdraw(uint256 tokenId, address to, bytes memory data) external;
+    function unstake(uint256 tokenId, bytes memory data) external;
 
     /// @notice Transfers `amountRequested` of accrued BTRs yield (reward tokens) from the contract to the recipient `to`
+    /// @param tokenId The ID of the token to unstake
     /// @param to The address where harvest yield will be sent to
     /// @param yieldRequested The amount of yield to harvest. Claims entire yield amount if set to 0.
     /// @return yieldHarvested The amount of yield harvested
-    function harvest(address to, uint256 yieldRequested) external returns (uint256 yieldHarvested);
+    function harvest(uint256 tokenId, address to, uint256 yieldRequested) external returns (uint256 yieldHarvested);
 
     /// @notice Calculates the yield (reward) amount that will be received for the given stake
     /// @param tokenId The ID of the token
@@ -116,7 +107,7 @@ interface IBitrielFarmer is IERC721Receiver, IMulticall {
     /// @notice Migrate lp token to another lp contract. Can be called by anyone. We trust that migrator contract is good.
     /// @param params The params necessary to migrate v2 liquidity, encoded as `MigrateParams` in calldata
     /// @param data An optional data array that will be passed along to the `to` address via the NFT safeTransferFrom
-    function migrate(IMigrator.MigrateParams calldata params, bytes calldata data) external;
+    function migrate(IMigrator.MigrateParams calldata params, bytes memory data) external;
 
     /// @notice Event emitted when a yield farming incentive has been created
     /// @param pool The BitrielSwap pool
@@ -144,17 +135,6 @@ interface IBitrielFarmer is IERC721Receiver, IMulticall {
     /// @notice Event emitted when a BitrielSwap LP token has been unstaked
     /// @param tokenId The unique identifier of an BitrielSwap LP token
     event TokenUnstaked(uint256 indexed tokenId);
-
-    /// @notice Emitted when ownership of a deposit changes
-    /// @param tokenId The ID of the deposit (and token) that is being transferred
-    /// @param oldOwner The owner before the deposit was transferred
-    /// @param newOwner The owner after the deposit was transferred
-    event DepositTransferred(uint256 indexed tokenId, address indexed oldOwner, address indexed newOwner);
-
-    /// @notice Emitted when a BitrielSwap LP token has been withdrawn to recipient `to`
-    /// @param tokenId The ID of the deposit (and token) that is being transferred
-    /// @param to The address where the LP token were sent to
-    event TokenWithdrawn(uint256 indexed tokenId, address indexed to);
 
     /// @notice Event emitted when a yield (reward token) has been claimed
     /// @param to The address where harvested yield were sent to
