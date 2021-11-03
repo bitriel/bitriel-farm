@@ -4,10 +4,10 @@ pragma solidity >=0.7.0;
 import '@bitriel/bitrielswap-core/contracts/libraries/FullMath.sol';
 
 /// @dev Math for computing yield (rewards)
-/// @notice Allows computing yield given some parameters of stakes and incentives
+/// @notice Allows computing yield given some parameters of stakes and farms
 library YieldMath {
-    /// @notice Compute the amount of yield owed given parameters of the incentive and stake
-    /// @param totalYieldUnclaimed The total amount of unclaimed rewards left for an incentive
+    /// @notice Compute the amount of yield owed given parameters of the farm and stake
+    /// @param totalYieldUnclaimed The total amount of unclaimed rewards left for an farm
     /// @param totalSecondsClaimedX128 How many full liquidity-seconds have been already claimed for the incentive
     /// @param liquidity The amount of liquidity, assumed to be constant over the period over which the snapshots are measured
     /// @param secondsPerLiquidityInsideInitialX128 The seconds per liquidity of the liquidity tick range as of the beginning of the period

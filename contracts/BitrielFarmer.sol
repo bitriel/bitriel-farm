@@ -158,9 +158,9 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
         harvest(tokenId, deposit.owner, 0);
 
         // get NFT position info from `tokenId` and farm info from BitrielSwap pool address
-        (IBitrielPool pool, , , ) =
+        (address pool, , , ) =
             NFTPositionInfo.getPositionInfo(factory, nonfungiblePositionManager, tokenId);
-        farms[address(pool)].numberOfStakes--;
+        farms[pool].numberOfStakes--;
 
         // delete stake that represent staking position in the farm
         delete _stakes[tokenId];
@@ -182,15 +182,14 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
         require(to != address(0) && to != address(this), "IRA"); // invalid recipient address
 
         // get NFT position info from `tokenId` and farm info from BitrielSwap pool address
-        (IBitrielPool pool, , , ) =
+        (address pool, , , ) =
             NFTPositionInfo.getPositionInfo(factory, nonfungiblePositionManager, tokenId);
-        address poolAddress = address(pool);
 
         (uint256 yieldAmount, uint160 secondsInsideX128) = getYieldInfo(tokenId);
 
         // update states of deposits, farms and yield based computed yield amount
-        farms[poolAddress].totalSecondsClaimedX128 += secondsInsideX128;
-        farms[poolAddress].totalYieldUnclaimed = farms[poolAddress].totalYieldUnclaimed.sub(yieldAmount);
+        farms[pool].totalSecondsClaimedX128 += secondsInsideX128;
+        farms[pool].totalYieldUnclaimed = farms[pool].totalYieldUnclaimed.sub(yieldAmount);
         yield[msg.sender] = yield[msg.sender].add(yieldAmount);
 
         // get available yield to harvest for distributing to `msg.sender`
@@ -236,12 +235,12 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
         require(liquidity > 0, 'SNE'); // stake does not exist
 
         // get NFT position info from `tokenId` and farm info from BitrielSwap pool address
-        (IBitrielPool pool, int24 tickLower, int24 tickUpper, ) =
+        (address pool, int24 tickLower, int24 tickUpper, ) =
             NFTPositionInfo.getPositionInfo(factory, nonfungiblePositionManager, tokenId);
-        Farm memory farm = farms[address(pool)];
+        Farm memory farm = farms[pool];
 
         // get `secondsPerLiquidity` from the pool tick range
-        (, uint160 secondsPerLiquidityInsideX128, ) = pool.snapshotCumulativesInside(tickLower, tickUpper);
+        (, uint160 secondsPerLiquidityInsideX128, ) = IBitrielPool(pool).snapshotCumulativesInside(tickLower, tickUpper);
         // compute allocation yield amount to be distributed from the given liquidity and secondsPerLiquidity
         (yieldAmount, secondsInsideX128) = YieldMath.computeYieldAmount(
             farm.totalYieldUnclaimed,
@@ -281,14 +280,13 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
         require(_stakes[tokenId].liquidityNoOverflow == 0, 'TAS'); // token is already staked
 
         // get/check if the liquidity and the pool is valid
-        (IBitrielPool pool, int24 tickLower, int24 tickUpper, uint128 liquidity) =
+        (address pool, int24 tickLower, int24 tickUpper, uint128 liquidity) =
             NFTPositionInfo.getPositionInfo(factory, nonfungiblePositionManager, tokenId);
         require(liquidity > 0, 'ZL'); // cannot stake token with 0 liquidity
 
-        address poolAddresss = address(pool);
-        require(farms[poolAddresss].totalYieldUnclaimed > 0, 'NEI'); // non-existent farm
+        require(farms[pool].totalYieldUnclaimed > 0, 'NEI'); // non-existent farm
 
-        (, uint160 secondsPerLiquidityInsideX128, ) = pool.snapshotCumulativesInside(tickLower, tickUpper);
+        (, uint160 secondsPerLiquidityInsideX128, ) = IBitrielPool(pool).snapshotCumulativesInside(tickLower, tickUpper);
 
         // check if provided liquidity pool is over the maximum (2^96) to handle
         // store new stake object with liquidity
@@ -309,7 +307,7 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
         }
 
         // increase number of stakes in the farm
-        farms[poolAddresss].numberOfStakes++;
+        farms[pool].numberOfStakes++;
 
         // emit TokenStaked event
         emit TokenStaked(tokenId, liquidity);

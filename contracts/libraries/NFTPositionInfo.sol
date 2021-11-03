@@ -2,7 +2,6 @@
 pragma solidity >=0.7.0;
 
 import '@bitriel/bitrielswap-core/contracts/interfaces/IBitrielFactory.sol';
-import '@bitriel/bitrielswap-core/contracts/interfaces/IBitrielPool.sol';
 import '@bitriel/bitrielswap-periphery/contracts/interfaces/INonfungiblePositionManager.sol';
 import '@bitriel/bitrielswap-periphery/contracts/libraries/PoolAddress.sol';
 
@@ -20,7 +19,7 @@ library NFTPositionInfo {
         INonfungiblePositionManager nonfungiblePositionManager,
         uint256 tokenId
     ) internal view returns (
-        IBitrielPool pool,
+        address pool,
         int24 tickLower,
         int24 tickUpper,
         uint128 liquidity
@@ -32,11 +31,9 @@ library NFTPositionInfo {
             tokenId
         );
 
-        pool = IBitrielPool(
-            PoolAddress.computeAddress(
-                address(factory),
-                PoolAddress.PoolKey({token0: token0, token1: token1, fee: fee})
-            )
+        pool = PoolAddress.computeAddress(
+            address(factory),
+            PoolAddress.PoolKey({token0: token0, token1: token1, fee: fee})
         );
     }
 }
