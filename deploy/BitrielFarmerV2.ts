@@ -18,7 +18,7 @@ const deploy: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
         NONFUNGIBLE_POSITION_MANAGER_ADDRESSES[chainId],
         bitriel.address,
         "200000000000000000", // 0.2 BTRs
-        "13813500"
+        "13815000"
       ],
       log: true
     })
