@@ -346,9 +346,10 @@ contract BitrielFarmerV2 is IBitrielFarmerV2, Multicall, Ownable {
     // require(farms[pool].allocPoint > 0, 'NIF'); // non-existent or inactive farm
     if(farms[pool].allocPoint == 0) return;
 
-    if(_userTokens[pool][_user].length > 0) {
+    if(_userTokens[pool][_user].length > 0) 
       claim(pool, _user);
-    }
+    else 
+      updateFarm(pool);
 
     stakes[_tokenId].liquidity = liquidity;
     _userTokens[pool][_user].push(_tokenId);
