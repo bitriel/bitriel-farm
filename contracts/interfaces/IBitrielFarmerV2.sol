@@ -38,6 +38,12 @@ interface IBitrielFarmerV2 is IERC721Receiver, IMulticall {
       uint256 accBTRPerShareX12,
       uint128 totalLiquidity
     );
+
+  /// @notice Represents a list of staked token of the farming pool incentive
+  /// @param pool The liquidity pool contract address
+  /// @param user The user who paticipated in the farming pool 
+  /// @return tokens a list of staked token ID
+  function userTokens(address pool, address user) external view returns(uint256[] memory tokens);
   
   /// @notice Returns information about a deposited NFT
   /// @param tokenId The unique identifier of an LP token
@@ -72,10 +78,9 @@ interface IBitrielFarmerV2 is IERC721Receiver, IMulticall {
   function setFarm(address pool, uint256 allocPoint) external;
 
   /// @notice Get the amount of reward ready for harvest from staking the `tokenId`
-  /// @param pool The pool contract
   /// @param tokenId The unique identifier of an LP token
   /// @return amount The amount of reward
-  function rewardToken(address pool, uint256 tokenId) external view returns(uint256 amount);
+  function rewardToken(uint256 tokenId) external view returns(uint256 amount);
 
   /// @notice Get the amount of reward ready for harvest of `user` staking inside the farming pool
   /// @param pool The pool contract 

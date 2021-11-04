@@ -10,6 +10,7 @@ import '@typechain/hardhat'
 import "hardhat-contract-sizer";
 import "hardhat-deploy"
 import "hardhat-gas-reporter"
+import "hardhat-docgen"
 
 const accounts = {
   mnemonic: process.env.MNEMONIC,
@@ -145,6 +146,10 @@ const config: HardhatUserConfig = {
   typechain: {
     outDir: "types",
   },
+  docgen: {
+    path: './docs',
+    clear: true,
+  }
 }
 
 if (process.env.ETHERSCAN_API_KEY) {
