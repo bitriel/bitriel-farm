@@ -4,140 +4,176 @@ pragma abicoder v2;
 
 import '@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol';
 
-import "@bitriel/bitrielswap-core/contracts/interfaces/IBitrielFactory.sol";
-import "@bitriel/bitrielswap-core/contracts/interfaces/IBitrielPool.sol";
+import '@bitriel/bitrielswap-core/contracts/interfaces/IBitrielFactory.sol';
+import '@bitriel/bitrielswap-core/contracts/interfaces/IBitrielPool.sol';
+import '@bitriel/bitrielswap-periphery/contracts/interfaces/INonfungiblePositionManager.sol';
+import '@bitriel/bitrielswap-periphery/contracts/interfaces/IMigrator.sol';
 import '@bitriel/bitrielswap-periphery/contracts/interfaces/IMulticall.sol';
-import "@bitriel/bitrielswap-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
-import "@bitriel/bitrielswap-periphery/contracts/interfaces/IMigrator.sol";
 
+import "./IBitrielToken.sol";
 
-/// @title Bitriel Farmer Interface
-/// @notice Allows staking nonfungible liquidity tokens in exchange for BTRs as reward tokens
 interface IBitrielFarmer is IERC721Receiver, IMulticall {
-    /// @notice The BitrielFactory
-    function factory() external view returns (IBitrielFactory);
+  /// @notice The BitrielSwap Factory
+  function factory() external view returns (IBitrielFactory);
 
-    /// @notice The nonfungible position manager which this staking contract is compatible
-    function nonfungiblePositionManager() external view returns (INonfungiblePositionManager);
+  /// @notice The nonfungible position manager
+  function nonfungiblePositionManager() external view returns (INonfungiblePositionManager);
 
-    /// @notice The migrator contract. It has a lot of power
-    /// @dev Can only be set through governance (owner).
-    function migrator() external view returns (IMigrator);
+  /// @notice The migrator to perform LP token migration
+  function migrator() external view returns(IMigrator);
 
-    /// @notice Represents a yield farming incentive
-    /// @param poolAddress The pool address
-    /// @return totalYieldUnclaimed The amount of yield (reward token) not yet claimed by users
-    /// @return totalSecondsClaimedX128 Total liquidity-seconds claimed, represented as a UQ32.128
-    /// @return numberOfStakes The count of deposits that are currently staked for the yield farming incentive
-    function farms(address poolAddress) external view 
-    returns (
-        uint256 totalYieldUnclaimed,
-        uint160 totalSecondsClaimedX128,
-        uint96 numberOfStakes
+  /// @notice The token use to reward users for paticipantion and governance token
+  function bitriel() external view returns(IBitrielToken);
+
+  /// @notice Represents a farming incentive
+  /// @param pool The pool contract address 
+  /// @return allocPoint How many allocation points assigned to this pool. BTRs to distribute per block
+  /// @return lastRewardBlock Last block number that BTRs distribution occurs
+  /// @return accBTRPerLiqX12 Accumulated BTRs per liquidity, times 1e12.
+  /// @return totalLiquidity Total liquidity has been staked in the farm
+  function farms(address pool) external view 
+    returns(
+      uint256 allocPoint,
+      uint256 lastRewardBlock, 
+      uint256 accBTRPerLiqX12,
+      uint128 totalLiquidity
     );
 
-    /// @notice Returns information about a deposited NFT
-    /// @return owner The owner of the deposited NFT
-    /// @return tickLower The lower tick of the range
-    /// @return tickUpper The upper tick of the range
-    function deposits(uint256 tokenId) external view 
-    returns (
-        address owner,
-        int24 tickLower,
-        int24 tickUpper
+  /// @notice Represents a list of staked token of the farming pool incentive
+  /// @param pool The liquidity pool contract address
+  /// @param user The user who paticipated in the farming pool 
+  /// @return tokens a list of staked token ID
+  function userTokens(address pool, address user) external view returns(uint256[] memory tokens);
+  
+  /// @notice Returns information about a deposited NFT
+  /// @param tokenId The unique identifier of an LP token
+  /// @return owner The owner of the deposited NFT
+  /// @return tickLower The lower tick of the range
+  /// @return tickUpper The upper tick of the range
+  function deposits(uint256 tokenId) external view
+    returns(
+      address owner,
+      int24 tickLower,
+      int24 tickUpper
     );
 
-    /// @notice Returns information about a staked liquidity NFT
-    /// @param tokenId The ID of the staked token
-    /// @return secondsPerLiquidityInsideInitialX128 secondsPerLiquidity represented as a UQ32.128
-    /// @return liquidity The amount of liquidity in the NFT as of the last time the rewards were computed
-    /// @return startTime The timestamp when user start staking the `tokenId` in the farm
-    function stakes(uint256 tokenId) external view 
-    returns (
-        uint160 secondsPerLiquidityInsideInitialX128, 
-        uint128 liquidity,
-        uint256 startTime
+  /// @notice Returns information about a staked liquidity NFT
+  /// @param tokenId The ID of the staked token
+  /// @return lastSecondsPerLiquidityInsideX128 secondsPerLiquidity represented as a UQ32.128
+  /// @return lastRewardTime block timestamp which rewards has been distributed
+  /// @return liquidity The amount of liquidity in the NFT
+  /// @return rewardClaimed The amount of reward has been claimed
+  function stakes(uint256 tokenId) external view
+    returns(
+      uint160 lastSecondsPerLiquidityInsideX128,
+      uint256 lastRewardTime,
+      uint128 liquidity,
+      uint256 rewardClaimed
     );
 
-    /// @notice Returns amounts of yield (reward tokens) owed to a given address according to the last time all stakes were updated
-    /// @param owner The owner for which the yield owed are checked
-    /// @return yieldOwed The amount of the yield claimable by the owner
-    function yield(address owner) external view returns (uint256 yieldOwed);
+  /// @notice Creates a new farming pool to incentivise LP providers
+  /// @param pool The pool contract address
+  /// @param allocPoint The allocation points for the farm
+  function createFarm(address pool, uint256 allocPoint) external;
 
-    /// @notice Start a new yield farming incentive. 
-    /// @dev Can only be called by the owner.
-    /// @param pool The liquidity pool for this yield farming
-    /// @param allocYield The amount of allocation yield (reward tokens) to be distributed
-    function createFarm(IBitrielPool pool, uint256 allocYield) external;
+  /// @notice Set allocation points for existing farming pool
+  /// @param pool The pool contract address
+  /// @param allocPoint The new allocation points for the farm
+  function setFarm(address pool, uint256 allocPoint) external;
 
-    /// @notice Update a yield farming incentive. 
-    /// @dev Can only be called by the owner.
-    /// @param pool The liquidity pool for this yield farming
-    /// @param allocYield The amount of allocation yield (reward tokens) to be distributed
-    function updateFarm(IBitrielPool pool, uint256 allocYield) external;
+  /// @notice Get the amount of reward ready for harvest from staking the `tokenId`
+  /// @param tokenId The unique identifier of an LP token
+  /// @return amount The amount of reward
+  function rewardToken(uint256 tokenId) external view returns(uint256 amount);
 
-    /// @notice Stakes a BitrielSwap LP token
-    /// @param tokenId The ID of the token to stake
-    function stake(uint256 tokenId) external;
+  /// @notice Get the amount of reward ready for harvest of `user` staking inside the farming pool
+  /// @param pool The pool contract 
+  /// @param user The user address
+  /// @return amount The amount of reward
+  function reward(address pool, address user) external view returns(uint256 amount);
 
-    /// @notice Unstakes a BitrielSwap LP token
-    /// @param tokenId The ID of the token to unstake
-    /// @param data An optional data array that will be passed along to the `to` address via the NFT safeTransferFrom
-    function unstake(uint256 tokenId, bytes memory data) external;
+  /// @notice Update reward variables of the farming pool to be up-to-date.
+  /// @param pool The pool contract address
+  function updateFarm(address pool) external;
 
-    /// @notice Transfers `amountRequested` of accrued BTRs yield (reward tokens) from the contract to the recipient `to`
-    /// @param tokenId The ID of the token to unstake
-    /// @param to The address where harvest yield will be sent to
-    /// @param yieldRequested The amount of yield to harvest. Claims entire yield amount if set to 0.
-    /// @return yieldHarvested The amount of yield harvested
-    function harvest(uint256 tokenId, address to, uint256 yieldRequested) external returns (uint256 yieldHarvested);
+  /// @notice Stakes a deposited LP token
+  /// @param tokenId The ID of the token to stake
+  function stake(uint256 tokenId) external;
 
-    /// @notice Calculates the yield (reward) amount that will be received for the given stake
-    /// @param tokenId The ID of the token
-    /// @return yieldAmount The yield produced from the NFT for the given incentive thus far
-    function getYieldInfo(uint256 tokenId) external returns (
-        uint256 yieldAmount, 
-        uint160 secondsInsideX128
-    );
+  /// @notice Transfers amount of reward ready to harvest from the contract to the recipient `to` of `tokenId`
+  /// @param tokenId The ID of the token has been staked
+  /// @param to The address where claimed rewards will be sent to
+  /// @return amount The amount of reward tokens claimed
+  function claimToken(uint256 tokenId, address to) external returns(uint256 amount);
 
-    /// @notice Set the migrator contract. Can only be called by the owner.
-    /// @param _migrator The migrator contract address 
-    function setMigrator(IMigrator _migrator) external;
+  /// @notice Transfers amount of reward ready to harvest from the contract to the recipient `to`
+  /// @param pool The pool contract address
+  /// @param to The address where claimed rewards will be sent to
+  /// @return amount The amount of reward tokens claimed
+  function claim(address pool, address to) external returns(uint256 amount);
 
-    /// @notice Migrate lp token to another lp contract. Can be called by anyone. We trust that migrator contract is good.
-    /// @param params The params necessary to migrate v2 liquidity, encoded as `MigrateParams` in calldata
-    /// @param data An optional data array that will be passed along to the `to` address via the NFT safeTransferFrom
-    function migrate(IMigrator.MigrateParams calldata params, bytes memory data) external;
+  /// @notice Unstake and Withdraws a LP token `tokenId` from this contract to the owner
+  /// @param tokenId The unique identifier of a LP token
+  /// @param data An optional data array that will be passed along to the `to` address via the NFT safeTransferFrom
+  function withdrawToken(uint256 tokenId, bytes memory data) external;
 
-    /// @notice Event emitted when a yield farming incentive has been created
-    /// @param pool The BitrielSwap pool
-    /// @param reward The amount of reward tokens to be distributed
-    event YieldFarmingCreated(
-        IBitrielPool indexed pool,
-        uint256 reward
-    );
+  /// @notice Unstake and Withdraws a LP token `tokenId` from this contract to the owner
+  /// @param pool The pool contract address
+  /// @param data An optional data array that will be passed along to the `to` address via the NFT safeTransferFrom
+  function withdraw(address pool, bytes memory data) external;
 
-    /// @notice Event emitted when a yield farming incentive has been updated
-    /// @param pool The BitrielSwap pool for the yield farming being updated
-    /// @param oldReward The old amount of reward tokens
-    /// @param newReward The new updated amount of reward tokens to be distributed
-    event YieldFarmingUpdated(
-        IBitrielPool indexed pool,
-        uint256 oldReward,
-        uint256 newReward
-    );
+  /// @notice Set migrator contract address
+  /// @param _migrator The migrator address
+  function setMigrator(IMigrator _migrator) external;
 
-    /// @notice Event emitted when a BitrielSwap LP token has been staked
-    /// @param tokenId The unique identifier of an BitrielSwap LP token
-    /// @param liquidity The amount of liquidity staked
-    event TokenStaked(uint256 indexed tokenId, uint128 liquidity);
+  /// @notice Migrate LP token migration
+  /// @param params The parameters for migrator contract
+  /// @param data An optional data array that will be passed along to the `to` address via the NFT safeTransferFrom
+  function migrate(IMigrator.MigrateParams calldata params, bytes memory data) external;
 
-    /// @notice Event emitted when a BitrielSwap LP token has been unstaked
-    /// @param tokenId The unique identifier of an BitrielSwap LP token
-    event TokenUnstaked(uint256 indexed tokenId);
+  /// @notice Bonus multiplier over the given `from` to `to` block.
+  /// @param from The from block number
+  /// @param to The to block number
+  function getMultiplier(uint256 from, uint256 to) external returns(uint256);
 
-    /// @notice Event emitted when a yield (reward token) has been claimed
-    /// @param to The address where harvested yield were sent to
-    /// @param yield The amount of yield harvested
-    event YieldHarvested(address indexed to, uint256 yield);
+  /// @notice Update multiplier
+  /// @param multiplier The new multiplier
+  function updateMultiplier(uint256 multiplier) external;
+
+  /// @notice Event emitted when a farming pool incentive has been created
+  /// @param pool The Bitriel pool
+  /// @param reward The amount of reward tokens to be distributed
+  event FarmCreated(
+    IBitrielPool indexed pool,
+    uint256 reward
+  );
+
+  /// @notice Event that can be emitted when a farming pool incentive's allocation point has been updated
+  /// @param pool The Bitriel pool
+  /// @param oldAllocPoint The old allocation points for the farm
+  /// @param newAllocPoint The new allocation points for the farm
+  event FarmUpdated(
+    IBitrielPool indexed pool,
+    uint256 oldAllocPoint,
+    uint256 newAllocPoint
+  );
+
+  /// @notice Emitted when ownership of a deposit changes
+  /// @param tokenId The ID of the deposit (and token) that is being transferred
+  /// @param owner The owner of the deposit tokenId
+  event TokenDeposited(uint256 indexed tokenId, address indexed owner);
+
+  /// @notice Event emitted when a LP token has been staked
+  /// @param tokenId The unique identifier of an LP token
+  /// @param liquidity The amount of liquidity staked
+  event TokenStaked(uint256 indexed tokenId, uint128 liquidity);
+
+  /// @notice Event emitted when a reward token has been claimed
+  /// @param to The address where claimed rewards were sent to
+  /// @param reward The amount of BTRs tokens claimed
+  event Claimed(address indexed to, uint256 reward);
+
+  /// @notice Event emitted when a LP token has been withdrawn
+  /// @param tokenId The unique identifier of an LP token
+  event TokenWithdrawn(uint256 indexed tokenId);
 }
