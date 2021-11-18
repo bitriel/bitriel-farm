@@ -1,22 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.7.0;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
 import "./interfaces/IBitrielStake.sol";
-import "./BitrielToken.sol";
+import "./interfaces/IBitrielToken.sol";
 
 // BitrielStake is the staking contract for Bitriel Token. You come in with some BTR, and leave with more! The longer you stay, the more BTR you get.
 //
 // This contract handles swapping to and from xBTR, BitrielSwap's staking token.
 contract BitrielStake is IBitrielStake, ERC20("BitrielStake", "xBTR"){
     using SafeMath for uint256;
-    BitrielToken public bitriel;
+    IBitrielToken public bitriel;
 
     // Define the Bitriel token contract
-    constructor(BitrielToken _bitriel) {
+    constructor(IBitrielToken _bitriel) {
         bitriel = _bitriel;
     }
 

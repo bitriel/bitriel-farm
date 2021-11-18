@@ -131,10 +131,7 @@ describe("BitrielFarmer", () => {
         const rewardsEarned = bnSum(unstakes.map((o) => o.balance))
         log.debug('Total rewards ', rewardsEarned.toString())
 
-        const { amountReturnedToCreator } = await helpers.endFarmFlow({
-          createFarmResult,
-        })
-        expect(rewardsEarned.add(amountReturnedToCreator)).to.eq(totalReward)
+        expect(rewardsEarned).to.eq(totalReward)
       })
 
       describe('time goes past the farm was end', () => {
@@ -150,10 +147,10 @@ describe("BitrielFarmer", () => {
             doUnstake: (params: HelperTypes.MintDepositStake.Result) =>
               farmer
                 .connect(params.lp)
-                .unstakeToken(farmResultToStakeAdapter(createFarmResult), params.tokenId),
+                .unstake(params.tokenId),
 
             doWithdraw: (params: HelperTypes.MintDepositStake.Result) =>
-              farmer.connect(params.lp).withdrawToken(params.tokenId, params.lp.address, '0x'),
+              farmer.connect(params.lp).withdraw(params.tokenId, params.lp.address, '0x'),
 
             doHarvest: (params: HelperTypes.MintDepositStake.Result) =>
               farmer
@@ -166,13 +163,10 @@ describe("BitrielFarmer", () => {
           // First make sure it is still owned by the farmer
           expect(await nft.ownerOf(stakes[0].tokenId)).to.eq(farmer.address)
 
-          // The farm has not yet been ended by the creator
-          const farmId = await subject.helpers.getFarmId(createFarmResult)
-
           // It allows the token to be unstaked the first time
           await expect(actions.doUnstake(stakes[0]))
             .to.emit(farmer, 'TokenUnstaked')
-            .withArgs(stakes[0].tokenId, farmId)
+            .withArgs(stakes[0].tokenId)
 
           // It does not allow them to harvest yield (since we're past end time)
           await actions.doHarvest(stakes[0])
@@ -235,12 +229,6 @@ describe("BitrielFarmer", () => {
         )
         unstakes.push(...otherUnstakes)
 
-        // We don't need this call anymore because we're already setting that time above
-        // await Time.set(createFarmResult.endTime + 1)
-        const { amountReturnedToCreator } = await helpers.endFarmFlow({
-          createFarmResult,
-        })
-
         /* lpUser{1,2} should each have 5/12 of the total rewards.
           (1/3 * 1/2) from before lpUser0 withdrew
           (1/2 * 1/2) from after lpUser0. */
@@ -249,7 +237,7 @@ describe("BitrielFarmer", () => {
         expect(ratioE18(unstakes[2].balance, unstakes[1].balance)).to.eq('1.00')
 
         // All should add up to totalReward
-        expect(bnSum(unstakes.map((u) => u.balance)).add(amountReturnedToCreator)).to.eq(totalReward)
+        expect(bnSum(unstakes.map((u) => u.balance))).to.eq(totalReward)
       })
 
       describe('and then restakes at the 3/4 mark', () => {
@@ -342,12 +330,7 @@ describe("BitrielFarmer", () => {
           )
 
           expect(ratioE18(unstakes[2].balance, unstakes[3].balance)).to.eq('4.34')
-
-          // await Time.set(endTime + 1)
-          const { amountReturnedToCreator } = await helpers.endFarmFlow({
-            createFarmResult,
-          })
-          expect(bnSum(unstakes.map((u) => u.balance)).add(amountReturnedToCreator)).to.eq(totalReward)
+          expect(bnSum(unstakes.map((u) => u.balance))).to.eq(totalReward)
         })
       })
     })
@@ -421,12 +404,7 @@ describe("BitrielFarmer", () => {
         //   BNe(5, 16)
         // )
 
-        // await Time.set(createFarmResult.endTime + 1)
-        const { amountReturnedToCreator } = await helpers.endFarmFlow({
-          createFarmResult,
-        })
-
-        expect(amountReturnedToCreator.add(rewardsEarned)).to.eq(totalReward)
+        expect(rewardsEarned).to.eq(totalReward)
       })
     })
   })
