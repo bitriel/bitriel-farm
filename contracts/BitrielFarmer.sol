@@ -67,6 +67,7 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
 
   /// @dev Amount of BTRs produced per block for all farming pools in its decimals format
   uint256 public immutable BTRPerBlock;
+  uint256 private immutable secondsPerBlock;
   /// @dev Multiplier for bonusing to early BitrielFarm users
   uint256 public bonusMultiplier = 1;
   /// @dev Total allocation points from all the farms
@@ -80,17 +81,21 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
   /// @param _nonfungiblePositionManager the NFT position manager contract address
   /// @param _bitriel the Bitriel token address
   /// @param _BTRPerBlock the amount of BTRs to be emitted per block (its decimal format)
+  /// @param _secondsPerBlock the seconds per block
+  /// @param _startEmitBTR the block number when BTRs start to emitted
   constructor(
     IBitrielFactory _factory,
     INonfungiblePositionManager _nonfungiblePositionManager,
     IBitrielToken _bitriel,
     uint256 _BTRPerBlock,
+    uint256 _secondsPerBlock,
     uint256 _startEmitBTR
   ) {
     factory = _factory;
     nonfungiblePositionManager = _nonfungiblePositionManager;
     bitriel = _bitriel;
     BTRPerBlock = _BTRPerBlock;
+    secondsPerBlock = _secondsPerBlock;
     startEmitBTR = _startEmitBTR;
   }
 
@@ -119,6 +124,8 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
   /// @inheritdoc IBitrielFarmer
   function setFarm(address _pool, uint256 _allocPoint) public override onlyOwner {
     require(farms[_pool].lastRewardBlock != 0, "FNE"); // farm is not exist
+    updateFarm(_pool);
+
     uint256 prevAllocPoint = farms[_pool].allocPoint;
     farms[_pool].allocPoint = _allocPoint;
 
@@ -127,38 +134,6 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
     }
 
     emit FarmUpdated(IBitrielPool(_pool), prevAllocPoint, _allocPoint);
-  }
-
-  /// @inheritdoc IBitrielFarmer
-  function rewardToken(uint256 _tokenId) external view override returns(uint256) {
-    (address pool, , , uint128 liquidity) =
-      NFTPositionInfo.getPositionInfo(factory, nonfungiblePositionManager, _tokenId);
-    Farm memory farm = farms[pool];
-    uint256 accBTRPerLiqX12 = farm.accBTRPerLiqX12;
-
-    if(block.number > farm.lastRewardBlock && farm.totalLiquidity > 0) {
-      accBTRPerLiqX12 = _accumulateBTR(pool);
-    }
-
-    (uint160 secondsInsideX128, uint256 secondsStakedX128, ) = _secondsInsideStaked(pool, _tokenId);
-    return uint256(liquidity).mulDiv(secondsInsideX128, secondsStakedX128).mulDiv(accBTRPerLiqX12, 1e12).sub(stakes[_tokenId].rewardClaimed);
-  }
-
-  /// @inheritdoc IBitrielFarmer
-  function reward(address _pool, address _user) external view override returns(uint256 amount) {
-    Farm memory farm = farms[_pool];
-    uint256 accBTRPerLiqX12 = farm.accBTRPerLiqX12;
-
-    if(block.number > farm.lastRewardBlock && farm.totalLiquidity > 0) {
-      accBTRPerLiqX12 = _accumulateBTR(_pool);
-      uint256[] memory tokens = _userTokens[_pool][_user];
-
-      for(uint i=0; i<tokens.length; i++) {
-        (uint160 secondsInsideX128, uint256 secondsStakedX128, ) = _secondsInsideStaked(_pool, tokens[i]);
-        uint256 tokenReward = uint256(stakes[tokens[i]].liquidity).mulDiv(secondsInsideX128, secondsStakedX128).mulDiv(accBTRPerLiqX12, 1e12).sub(stakes[tokens[i]].rewardClaimed);
-        amount = amount.add(tokenReward);
-      }
-    }
   }
 
   /// @inheritdoc IBitrielFarmer
@@ -175,6 +150,44 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
     uint256 farmReward = multiplier.mul(BTRPerBlock).mulDiv(farm.allocPoint, totalAllocPoint);
     farm.accBTRPerLiqX12 = farm.accBTRPerLiqX12.add(farmReward.mulDiv(1e12, farm.totalLiquidity));
     farm.lastRewardBlock = block.number;
+
+    bitriel.mint(address(this), farmReward);
+    bitriel.mint(owner(), farmReward.div(10));
+  }
+
+  /// @inheritdoc IBitrielFarmer
+  function rewardToken(uint256 _tokenId) external view override returns(uint256 amount) {
+    (address pool, , , ) =
+      NFTPositionInfo.getPositionInfo(factory, nonfungiblePositionManager, _tokenId);
+    if(stakes[_tokenId].liquidity == 0) return 0;
+
+    Farm memory farm = farms[pool];
+    uint256 accBTRPerLiqX12 = farm.accBTRPerLiqX12;
+
+    if(block.number > farm.lastRewardBlock && farm.totalLiquidity > 0) {
+      accBTRPerLiqX12 = _accumulateBTRPerLiqX12(pool);
+    }
+
+    (uint256 accReward, ) = _accumulateReward(pool, _tokenId, accBTRPerLiqX12);
+    amount = accReward.sub(stakes[_tokenId].rewardClaimed);
+  }
+
+  /// @inheritdoc IBitrielFarmer
+  function reward(address _pool, address _user) external view override returns(uint256 amount) {
+    Farm memory farm = farms[_pool];
+    uint256 accBTRPerLiqX12 = farm.accBTRPerLiqX12;
+
+    if(block.number > farm.lastRewardBlock && farm.totalLiquidity > 0) {
+      accBTRPerLiqX12 = _accumulateBTRPerLiqX12(_pool);
+      uint256[] memory tokens = _userTokens[_pool][_user];
+
+      for(uint i=0; i<tokens.length; i++) {
+        if(stakes[tokens[i]].liquidity == 0) continue;
+
+        (uint256 accReward, ) = _accumulateReward(_pool, tokens[i], accBTRPerLiqX12);
+        amount = amount.add(accReward.sub(stakes[tokens[i]].rewardClaimed));
+      }
+    }
   }
 
   /// @inheritdoc IERC721Receiver
@@ -212,27 +225,24 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
     require(deposits[_tokenId].owner == msg.sender, "NTO"); // msg.sender is not the token owner
     require(_to != address(0) && _to != address(this), "IRA"); // invalid recipient address
 
-    (address pool, , , uint128 liquidity) =
+    (address pool, , , ) =
         NFTPositionInfo.getPositionInfo(factory, nonfungiblePositionManager, _tokenId);
-    require(liquidity > 0, "TNS"); // token is not yet staked
+    require(stakes[_tokenId].liquidity > 0, "TNS"); // token is not yet staked
     updateFarm(pool);
 
     Farm memory farm = farms[pool];
-    (uint160 secondsInsideX128, uint256 secondsStakedX128, uint160 secondsPerLiquidityInsideX128) = _secondsInsideStaked(pool, _tokenId);
-    uint256 accReward = uint256(liquidity).mulDiv(secondsInsideX128, secondsStakedX128).mulDiv(farm.accBTRPerLiqX12, 1e12);
+    (uint256 accReward, uint160 secondsPerLiquidityInsideX128) = _accumulateReward(pool, _tokenId, farm.accBTRPerLiqX12);
 
     amount = accReward.sub(stakes[_tokenId].rewardClaimed);
     stakes[_tokenId] = Stake({
       lastSecondsPerLiquidityInsideX128: secondsPerLiquidityInsideX128,
       lastRewardTime: block.timestamp,
       rewardClaimed: accReward,
-      liquidity: liquidity
+      liquidity: stakes[_tokenId].liquidity
     });
 
-    if(amount > 0) {
-      bitriel.mint(_to, amount);
-      bitriel.mint(owner(), amount.div(10));
-    }
+    if(amount > 0) 
+      safeBTRTransfer(_to, amount);
 
     emit Claimed(_to, amount);
   }
@@ -246,8 +256,7 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
     uint256[] memory tokens = _userTokens[_pool][msg.sender];
 
     for(uint i=0; i<tokens.length; i++) {
-      (uint160 secondsInsideX128, uint256 secondsStakedX128, uint160 secondsPerLiquidityInsideX128) = _secondsInsideStaked(_pool, tokens[i]);
-      uint256 accReward = uint256(stakes[tokens[i]].liquidity).mulDiv(secondsInsideX128, secondsStakedX128).mulDiv(farm.accBTRPerLiqX12, 1e12);
+      (uint256 accReward, uint160 secondsPerLiquidityInsideX128) = _accumulateReward(_pool, tokens[i], farm.accBTRPerLiqX12);
 
       amount = amount.add(accReward.sub(stakes[tokens[i]].rewardClaimed));
       stakes[tokens[i]] = Stake({
@@ -258,10 +267,8 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
       });
     }
 
-    if(amount > 0) {
-      bitriel.mint(_to, amount);
-      bitriel.mint(owner(), amount.div(10));
-    }
+    if(amount > 0) 
+      safeBTRTransfer(_to, amount);
 
     emit Claimed(_to, amount);
   } 
@@ -337,18 +344,33 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
     bonusMultiplier = _multiplier;
   }
 
-  /// @dev calculate `secondsInsideX128`, `secondsStakedX128` and `secondsPerLiquidityInsideX128` of `tokenId` inside the `pool`
-  function _secondsInsideStaked(address pool, uint256 tokenId) internal view 
-    returns(uint160 secondsInsideX128, uint256 secondsStakedX128, uint160 secondsPerLiquidityInsideX128) {
+  /// @dev transfer `_amount` of BTRs to `_to` address with SafeMode 
+  function safeBTRTransfer(address _to, uint256 _amount) internal {
+    uint256 bal = bitriel.balanceOf(address(this));
+    if (_amount > bal) {
+      bitriel.transfer(_to, bal);
+    } else {
+      bitriel.transfer(_to, _amount);
+    }
+  }
+
+  /// @dev calculate accumulate `accReward` and `secondsPerLiquidityInsideX128` of `tokenId` inside the `pool`
+  function _accumulateReward(address pool, uint256 tokenId, uint256 accBTRPerLiqX12) internal view 
+    returns(uint256 accReward, uint160 secondsPerLiquidityInsideX128) {
+    accReward = uint256(stakes[tokenId].liquidity).mulDiv(accBTRPerLiqX12, 1e12);
 
     // get `secondsPerLiquidity` from the pool tick range
     (, secondsPerLiquidityInsideX128, ) = IBitrielPool(pool).snapshotCumulativesInside(deposits[tokenId].tickLower, deposits[tokenId].tickUpper);
-    secondsInsideX128 = (secondsPerLiquidityInsideX128 - stakes[tokenId].lastSecondsPerLiquidityInsideX128) * stakes[tokenId].liquidity;
-    secondsStakedX128 = (block.timestamp - stakes[tokenId].lastRewardTime) << 128;
+    uint160 secondsInsideX128 = (secondsPerLiquidityInsideX128 - stakes[tokenId].lastSecondsPerLiquidityInsideX128) * stakes[tokenId].liquidity;
+    uint256 secondsStakedX128 = (block.timestamp - stakes[tokenId].lastRewardTime) << 128;
+    uint256 secondsOutsideX128 = secondsStakedX128.sub(secondsInsideX128);
+
+    if(secondsOutsideX128 != 0) 
+      accReward = accReward.sub(accReward.mulDiv(secondsOutsideX128, (secondsPerBlock << 128)));
   }
 
   /// @dev calculate `accBTRPerLiqX12` with `pool` address
-  function _accumulateBTR(address pool) internal view returns(uint256) {
+  function _accumulateBTRPerLiqX12(address pool) internal view returns(uint256) {
     uint256 multiplier = getMultiplier(farms[pool].lastRewardBlock, block.number);
     uint256 farmReward = multiplier.mul(BTRPerBlock).mulDiv(farms[pool].allocPoint, totalAllocPoint);
     return farms[pool].accBTRPerLiqX12.add(farmReward.mulDiv(1e12, uint256(farms[pool].totalLiquidity)));
@@ -362,14 +384,15 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
     (address pool, int24 tickLower, int24 tickUpper, uint128 liquidity) =
         NFTPositionInfo.getPositionInfo(factory, nonfungiblePositionManager, _tokenId);
     require(liquidity > 0, 'ZL'); // cannot stake token with 0 liquidity
-    // require(farms[pool].allocPoint > 0, 'NIF'); // non-existent or inactive farm
-    if(farms[pool].allocPoint == 0) return;
 
     if(_userTokens[pool][_user].length > 0) 
       claim(pool, _user);
     else 
       updateFarm(pool);
 
+    // require(farms[pool].allocPoint > 0, 'NIF'); // non-existent or inactive farm
+    if(farms[pool].allocPoint == 0) return;
+    
     (, uint160 secondsPerLiquidityInsideX128, ) = IBitrielPool(pool).snapshotCumulativesInside(tickLower, tickUpper);
     stakes[_tokenId] = Stake({
       lastSecondsPerLiquidityInsideX128: secondsPerLiquidityInsideX128,

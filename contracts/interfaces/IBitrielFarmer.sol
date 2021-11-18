@@ -142,10 +142,10 @@ interface IBitrielFarmer is IERC721Receiver, IMulticall {
 
   /// @notice Event emitted when a farming pool incentive has been created
   /// @param pool The Bitriel pool
-  /// @param reward The amount of reward tokens to be distributed
+  /// @param allocPoint The allocation points which reserve for the farm
   event FarmCreated(
     IBitrielPool indexed pool,
-    uint256 reward
+    uint256 allocPoint
   );
 
   /// @notice Event that can be emitted when a farming pool incentive's allocation point has been updated
