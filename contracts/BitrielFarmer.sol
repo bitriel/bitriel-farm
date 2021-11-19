@@ -67,7 +67,6 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
 
   /// @dev Amount of BTRs produced per block for all farming pools in its decimals format
   uint256 public immutable BTRPerBlock;
-  uint256 private immutable secondsPerBlock;
   /// @dev Multiplier for bonusing to early BitrielFarm users
   uint256 public bonusMultiplier = 1;
   /// @dev Total allocation points from all the farms
@@ -81,21 +80,18 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
   /// @param _nonfungiblePositionManager the NFT position manager contract address
   /// @param _bitriel the Bitriel token address
   /// @param _BTRPerBlock the amount of BTRs to be emitted per block (its decimal format)
-  /// @param _secondsPerBlock the seconds per block
   /// @param _startEmitBTR the block number when BTRs start to emitted
   constructor(
     IBitrielFactory _factory,
     INonfungiblePositionManager _nonfungiblePositionManager,
     IBitrielToken _bitriel,
     uint256 _BTRPerBlock,
-    uint256 _secondsPerBlock,
     uint256 _startEmitBTR
   ) {
     factory = _factory;
     nonfungiblePositionManager = _nonfungiblePositionManager;
     bitriel = _bitriel;
     BTRPerBlock = _BTRPerBlock;
-    secondsPerBlock = _secondsPerBlock;
     startEmitBTR = _startEmitBTR;
   }
 
@@ -221,7 +217,7 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
   }
 
   /// @inheritdoc IBitrielFarmer
-  function claimToken(uint256 _tokenId, address _to) public override returns(uint256 amount) {
+  function claimToken(uint256 _tokenId, address _to) public override isBTRStartEmit returns(uint256 amount) {
     require(deposits[_tokenId].owner == msg.sender, "NTO"); // msg.sender is not the token owner
     require(_to != address(0) && _to != address(this), "IRA"); // invalid recipient address
 
@@ -234,26 +230,29 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
     (uint256 accReward, uint160 secondsPerLiquidityInsideX128) = _accumulateReward(pool, _tokenId, farm.accBTRPerLiqX12);
 
     amount = accReward.sub(stakes[_tokenId].rewardClaimed);
-    stakes[_tokenId] = Stake({
-      lastSecondsPerLiquidityInsideX128: secondsPerLiquidityInsideX128,
-      lastRewardTime: block.timestamp,
-      rewardClaimed: accReward,
-      liquidity: stakes[_tokenId].liquidity
-    });
 
-    if(amount > 0) 
+    if(amount > 0) {
       safeBTRTransfer(_to, amount);
 
-    emit Claimed(_to, amount);
+      stakes[_tokenId] = Stake({
+        lastSecondsPerLiquidityInsideX128: secondsPerLiquidityInsideX128,
+        lastRewardTime: block.timestamp,
+        rewardClaimed: accReward,
+        liquidity: stakes[_tokenId].liquidity
+      });
+
+      emit Claimed(_to, amount);
+    }
   }
 
   /// @inheritdoc IBitrielFarmer
-  function claim(address _pool, address _to) public override returns(uint256 amount) {
+  function claim(address _pool, address _to) public override isBTRStartEmit returns(uint256 amount) {
     require(_to != address(0) && _to != address(this), "IRA"); // invalid recipient address
     updateFarm(_pool);
 
     Farm memory farm = farms[_pool];
     uint256[] memory tokens = _userTokens[_pool][msg.sender];
+    if(tokens.length == 0) return 0; 
 
     for(uint i=0; i<tokens.length; i++) {
       (uint256 accReward, uint160 secondsPerLiquidityInsideX128) = _accumulateReward(_pool, tokens[i], farm.accBTRPerLiqX12);
@@ -267,10 +266,11 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
       });
     }
 
-    if(amount > 0) 
+    if(amount > 0) {
       safeBTRTransfer(_to, amount);
-
-    emit Claimed(_to, amount);
+      
+      emit Claimed(_to, amount);
+    }
   } 
 
   /// @inheritdoc IBitrielFarmer
@@ -363,10 +363,10 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
     (, secondsPerLiquidityInsideX128, ) = IBitrielPool(pool).snapshotCumulativesInside(deposits[tokenId].tickLower, deposits[tokenId].tickUpper);
     uint160 secondsInsideX128 = (secondsPerLiquidityInsideX128 - stakes[tokenId].lastSecondsPerLiquidityInsideX128) * stakes[tokenId].liquidity;
     uint256 secondsStakedX128 = (block.timestamp - stakes[tokenId].lastRewardTime) << 128;
-    uint256 secondsOutsideX128 = secondsStakedX128.sub(secondsInsideX128);
+    uint256 secondsOutsideX128 = secondsStakedX128 - secondsInsideX128;
 
     if(secondsOutsideX128 != 0) 
-      accReward = accReward.sub(accReward.mulDiv(secondsOutsideX128, (secondsPerBlock << 128)));
+      accReward = accReward.sub(accReward.mulDiv(secondsOutsideX128, secondsStakedX128));
   }
 
   /// @dev calculate `accBTRPerLiqX12` with `pool` address
@@ -378,6 +378,7 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
 
   /// @dev stake a deposited `_tokenId`
   function _stake(uint256 _tokenId, address _user) private {
+    if(block.number < startEmitBTR) return;
     require(stakes[_tokenId].liquidity == 0, 'TAS'); // token is already staked
 
     // get/check if the liquidity and the pool is valid
@@ -405,5 +406,10 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
 
     // emit TokenStaked event
     emit TokenStaked(_tokenId, liquidity);
+  }
+
+  modifier isBTRStartEmit() {
+    require(block.number >= startEmitBTR);
+    _;
   }
 }
