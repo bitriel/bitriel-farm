@@ -285,7 +285,7 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
     nonfungiblePositionManager.safeTransferFrom(address(this), deposits[_tokenId].owner, _tokenId, data);
 
     // delete deposit position after transfer liquidity NFT back to the owner
-    delete stakes[_tokenId];
+    stakes[_tokenId].liquidity = 0;
     delete deposits[_tokenId];
     farms[pool].totalLiquidity -= liquidity;
 
@@ -305,7 +305,7 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
       liquidity += stakes[tokens[i]].liquidity;
 
       // delete deposit position after transfer liquidity NFT back to the owner
-      delete stakes[tokens[i]];
+      stakes[tokens[i]].liquidity = 0;
       delete deposits[tokens[i]];
 
       emit TokenWithdrawn(tokens[i]);
@@ -399,7 +399,7 @@ contract BitrielFarmer is IBitrielFarmer, Multicall, Ownable {
       lastSecondsPerLiquidityInsideX128: secondsPerLiquidityInsideX128,
       lastRewardTime: block.timestamp,
       liquidity: liquidity,
-      rewardClaimed: 0
+      rewardClaimed: stakes[_tokenId].rewardClaimed
     });
     _userTokens[pool][_user].push(_tokenId);
     farms[pool].totalLiquidity += liquidity;
