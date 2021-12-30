@@ -16,8 +16,8 @@ const deploy: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
         FACTORY_ADDRESS[chainId],
         NONFUNGIBLE_POSITION_MANAGER_ADDRESSES[chainId],
         BTR_ADDRESS[chainId],
-        "200000000000000000", // 0.2 BTRs
-        "14245000"
+        "1000000000000000000", // 1 BTRs
+        "185000"
       ],
       log: true
     })

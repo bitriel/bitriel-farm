@@ -1,6 +1,6 @@
 {
   "name": "@bitriel/bitriel-farm",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "license": "GPL-3.0",
   "description": "Yield Farming Smart Contracts for BitrielSwap Protocol",
   "homepage": "https://dapp.bitriel.com/farm",
@@ -32,9 +32,9 @@
     "docs": "hardhat docgen"
   },
   "devDependencies": {
-    "@bitriel/bitrielswap-core": "^1.0.0",
-    "@bitriel/bitrielswap-periphery": "^1.1.4",
-    "@bitriel/bitrielswap-sdk": "^1.1.5",
+    "@bitriel/bitrielswap-core": "^1.0.1",
+    "@bitriel/bitrielswap-periphery": "^1.1.9",
+    "@bitriel/bitrielswap-sdk": "^1.2.6",
     "@bitriel/governance": "^0.1.4",
     "@nomiclabs/hardhat-ethers": "npm:hardhat-deploy-ethers",
     "@nomiclabs/hardhat-etherscan": "^2.1.4",
